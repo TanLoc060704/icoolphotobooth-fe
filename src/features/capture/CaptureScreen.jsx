@@ -4,7 +4,7 @@ import { usePhotobooth } from '../../store/PhotoboothContext.jsx'
 import './CaptureScreen.css'
 
 export default function CaptureScreen() {
-  const { currentStep, nextStep, prevStep, selectedLayout, setSelectedPhotos } = usePhotobooth()
+  const { currentStep, nextStep, prevStep, selectedLayout, setCapturedPhotos } = usePhotobooth()
 
   const videoRef = useRef(null)
   const mediaStreamRef = useRef(null)
@@ -183,10 +183,15 @@ export default function CaptureScreen() {
     })
   }
 
-  const handleConfirmPick = () => {
+const handleConfirmPick = () => {
     const sortedIndices = [...selectedIndices].sort((a, b) => a - b)
     const finalPhotos = sortedIndices.map(i => capturedImages[i])
-    if (typeof setSelectedPhotos === 'function') setSelectedPhotos(finalPhotos)
+    
+    // Đảm bảo gọi đúng hàm setter để đẩy ảnh sang các bước sau
+    if (typeof setCapturedPhotos === 'function') {
+      setCapturedPhotos(finalPhotos)
+    }
+    
     nextStep()
   }
 
