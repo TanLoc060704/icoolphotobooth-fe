@@ -4,7 +4,9 @@ import { usePhotobooth } from '../../store/PhotoboothContext.jsx'
 import './SelectionScreen.css'
 
 export default function SelectionScreen() {
-  const { currentStep, nextStep, prevStep, resetKiosk } = usePhotobooth()
+  // Lấy các hàm setter từ Context (giả định Context của bạn có hỗ trợ cập nhật state layout và filter, 
+  // hoặc hàm tổng quát như updateConfig. Nếu Context chỉ có nextStep, bạn cần bổ sung thêm vào Context nhé)
+  const { currentStep, nextStep, prevStep, resetKiosk, setSelectedLayout, setSelectedFilter } = usePhotobooth()
 
   const [layout, setLayout] = useState('strip-4')
   const [filter, setFilter] = useState('original')
@@ -34,7 +36,10 @@ export default function SelectionScreen() {
     return null
   }
 
+  // Khi bấm tiếp tục, lưu giá trị lên Context để các bước sau (Capture, Result) đọc được
   const handleContinue = () => {
+    if (typeof setSelectedLayout === 'function') setSelectedLayout(layout)
+    if (typeof setSelectedFilter === 'function') setSelectedFilter(filter)
     nextStep()
   }
 
@@ -44,7 +49,6 @@ export default function SelectionScreen() {
     <section className="kiosk-selection-container">
       
       <div className="selection-header">
-        {/* <div className="selection-step-tag">Bước 02 / 07</div> */}
         <h2 className="selection-title">Lựa chọn trải nghiệm</h2>
         
         <div className="countdown-container">
@@ -64,7 +68,6 @@ export default function SelectionScreen() {
           <h3>1. DẠNG DẢI DỌC (PHOTO STRIPS)</h3>
           <div className="options-scroll-row">
             
-            {/* Dải 4 ô */}
             <div 
               className={`kiosk-card ${layout === 'strip-4' ? 'active' : ''}`}
               onClick={() => setLayout('strip-4')}
@@ -75,12 +78,10 @@ export default function SelectionScreen() {
                   <div className="strip-cell"></div>
                   <div className="strip-cell"></div>
                   <div className="strip-cell"></div>
-                  <div className="strip-cell"></div>
                   <div className="strip-cell header-footer"></div>
                 </div>
                 <div className="strip-mockup double double-right">
                   <div className="strip-cell header-footer"></div>
-                  <div className="strip-cell"></div>
                   <div className="strip-cell"></div>
                   <div className="strip-cell"></div>
                   <div className="strip-cell"></div>
@@ -90,7 +91,6 @@ export default function SelectionScreen() {
               <span>Dải 4 Ô (1x4)</span>
             </div>
 
-            {/* Dải 3 ô (Đã sửa hiển thị đúng 3 ô ảnh) */}
             <div 
               className={`kiosk-card ${layout === 'strip-3' ? 'active' : ''}`}
               onClick={() => setLayout('strip-3')}
@@ -100,12 +100,10 @@ export default function SelectionScreen() {
                   <div className="strip-cell header-footer"></div>
                   <div className="strip-cell"></div>
                   <div className="strip-cell"></div>
-                  <div className="strip-cell"></div>
                   <div className="strip-cell header-footer"></div>
                 </div>
                 <div className="strip-mockup double double-right">
                   <div className="strip-cell header-footer"></div>
-                  <div className="strip-cell"></div>
                   <div className="strip-cell"></div>
                   <div className="strip-cell"></div>
                   <div className="strip-cell header-footer"></div>

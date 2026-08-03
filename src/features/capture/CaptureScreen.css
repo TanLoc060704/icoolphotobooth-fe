@@ -1,0 +1,424 @@
+/* =========================================
+   CAPTURE SCREEN CONTAINER (Tràn viền Galaxy)
+========================================= */
+.kiosk-capture-container,
+.kiosk-pick-container {
+  width: 100vw;
+  height: 100vh;
+  position: fixed;
+  top: 0;
+  left: 0;
+  background: linear-gradient(135deg, #090a0f 0%, #120b29 50%, #0a192f 100%);
+  color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2rem 3rem;
+  box-sizing: border-box;
+  overflow: hidden;
+  z-index: 9999;
+  font-family: 'Montserrat', sans-serif;
+}
+
+/* =========================================
+   HEADER 
+========================================= */
+.capture-header {
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.capture-step-tag {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 4px;
+  color: #ff0055;
+  font-weight: 700;
+  margin-bottom: 0.2rem;
+}
+
+.capture-title {
+  margin: 0;
+  font-size: clamp(1.8rem, 3.5vw, 2.5rem);
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  text-shadow: 0 0 15px rgba(255, 255, 255, 0.4);
+}
+
+/* =========================================
+   CAMERA VIEWPORT (Đã sửa tỷ lệ động & Phóng to)
+========================================= */
+.camera-viewport-wrapper {
+  position: relative;
+  height: 65vh; /* Đã phóng to camera lên */
+  width: auto; /* Bắt buộc để aspect-ratio tự tính toán chiều ngang */
+  max-width: 95vw;
+  max-height: 800px;
+  background: #000000;
+  border-radius: 24px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 0 40px rgba(0, 153, 255, 0.3), inset 0 0 20px rgba(0,0,0,0.8);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto;
+}
+
+/* Dùng object-fit cover để tự động crop phần thừa video theo khung */
+.camera-stream-preview {
+  width: 100%;
+  height: 100%;
+  object-fit: cover; 
+  transform: scaleX(-1); /* Hiệu ứng gương */
+}
+
+/* =========================================
+   HIỆU ỨNG ĐẾM NGƯỢC & FLASH
+========================================= */
+.countdown-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
+.countdown-number {
+  font-size: clamp(8rem, 20vw, 14rem);
+  font-weight: 900;
+  color: #ffffff;
+  text-shadow: 0 0 30px #ff0055, 0 0 60px #0055ff;
+  animation: pulse-number 1s ease-in-out infinite;
+  line-height: 1;
+}
+
+@keyframes pulse-number {
+  0% { transform: scale(0.9); opacity: 0.8; }
+  50% { transform: scale(1.1); opacity: 1; }
+  100% { transform: scale(0.9); opacity: 0.8; }
+}
+
+.countdown-text-status {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #00ffcc;
+  margin-top: 1rem;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.camera-flash {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: #ffffff;
+  z-index: 20;
+  animation: flash-anim 0.5s ease-out forwards;
+}
+
+@keyframes flash-anim {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* =========================================
+   THUMBNAILS PROGRESS (Ảnh thu nhỏ lúc chụp)
+========================================= */
+.captured-thumbs-row {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  align-items: center;
+  height: 70px;
+  flex-shrink: 0;
+}
+
+.thumb-slot {
+  height: 65px; /* Tăng kích thước ảnh thu nhỏ */
+  width: auto; /* Tự ăn theo tỷ lệ aspect-ratio */
+  background: rgba(255, 255, 255, 0.05);
+  border: 2px dashed rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  color: #64748b;
+  overflow: hidden;
+}
+
+.thumb-slot.filled {
+  border: 2px solid #00ffcc;
+  box-shadow: 0 0 10px rgba(0, 255, 204, 0.4);
+  border-style: solid;
+}
+
+.thumb-slot img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1);
+}
+
+/* =========================================
+   PICK PHOTOS SCREEN (Lưới chọn ảnh sau chụp)
+========================================= */
+.pick-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1.5rem;
+  width: 100%;
+  max-width: 1200px;
+  flex: 1;
+  align-content: center;
+  padding: 0 1rem;
+}
+
+.pick-card {
+  position: relative;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 3px solid rgba(255, 255, 255, 0.2);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: #000;
+  width: 100%;
+  height: auto; /* Chiều cao tự tính theo aspect-ratio */
+}
+
+.pick-card img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1);
+}
+
+.pick-card.selected {
+  border-color: #00ffcc;
+  box-shadow: 0 0 25px rgba(0, 255, 204, 0.5);
+  transform: scale(1.03);
+}
+
+.pick-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 32px;
+  height: 32px;
+  background: rgba(0, 0, 0, 0.6);
+  border: 2px solid #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 0.9rem;
+}
+
+.pick-card.selected .pick-badge {
+  background: #00ffcc;
+  color: #000;
+  border-color: #00ffcc;
+}
+
+/* =========================================
+   CUSTOM TOAST & FOOTER BUTTONS
+========================================= */
+.capture-footer {
+  display: flex;
+  gap: 1.5rem;
+  flex-shrink: 0;
+}
+
+.capture-action-btn {
+  font-size: 1.2rem !important;
+  padding: 0.8rem 3rem !important;
+  font-weight: 700 !important;
+  background: linear-gradient(45deg, #ff0055 0%, #8a2be2 50%, #0055ff 100%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.4) !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 20px rgba(138, 43, 226, 0.5) !important;
+}
+
+.kiosk-custom-toast {
+  position: fixed;
+  top: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(15, 23, 42, 0.95);
+  border: 2px solid #ff0055;
+  box-shadow: 0 0 25px rgba(255, 0, 85, 0.5);
+  color: #ffffff;
+  padding: 1rem 2rem;
+  border-radius: 50px;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  z-index: 10000;
+  font-weight: 600;
+  font-size: 1.1rem;
+  animation: slideDownToast 0.3s ease-out forwards;
+  backdrop-filter: blur(10px);
+  pointer-events: none; 
+}
+
+.kiosk-custom-toast i {
+  font-size: 1.5rem;
+  color: #ff0055;
+  animation: pulse-icon 1s infinite;
+}
+
+@keyframes slideDownToast {
+  0% { top: -20px; opacity: 0; }
+  100% { top: 40px; opacity: 1; }
+}
+
+@keyframes pulse-icon {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+
+/* =========================================
+   PICK CARD ACTIONS (Nút Chọn & Xem trên ảnh)
+========================================= */
+.pick-card {
+  position: relative;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 3px solid rgba(255, 255, 255, 0.2);
+  transition: all 0.2s ease;
+  background: #000;
+  width: 100%;
+  height: auto; 
+}
+
+/* Thanh chứa 2 nút bấm nằm dưới đáy ảnh */
+.pick-card-actions {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  padding: 1.5rem 0.5rem 0.5rem 0.5rem;
+  background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0) 100%);
+  display: flex;
+  gap: 0.5rem;
+  justify-content: space-between;
+}
+
+.pick-action-btn {
+  flex: 1;
+  padding: 0.5rem 0 !important;
+  font-size: 0.85rem !important;
+  font-weight: bold !important;
+  border-radius: 8px !important;
+}
+
+/* =========================================
+   IMAGE PREVIEW POPUP (Cửa sổ xem ảnh phóng to)
+========================================= */
+.image-preview-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(10px);
+  z-index: 100000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.preview-close-btn {
+  position: absolute;
+  top: 2rem;
+  right: 3rem;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  font-size: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  z-index: 100001;
+}
+
+.preview-close-btn:hover {
+  background: #ff0055;
+  border-color: #ff0055;
+  transform: scale(1.1);
+}
+
+/* Khung chứa ảnh để hỗ trợ Zoom */
+.preview-image-container {
+  width: 80%;
+  height: 75vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden; /* Giấu phần ảnh bị tràn khi zoom quá to */
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  background: #000;
+}
+
+.preview-image-container img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  transition: transform 0.2s ease-out;
+  transform-origin: center center;
+}
+
+/* Bộ điều khiển Zoom In / Zoom Out */
+.preview-zoom-controls {
+  margin-top: 1.5rem;
+  display: flex;
+  gap: 1rem;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 0.5rem 1rem;
+  border-radius: 50px;
+}
+
+/* Khung chứa ảnh để hỗ trợ Zoom */
+.preview-image-container {
+  width: 80%;
+  height: 75vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden; /* Giấu phần ảnh bị tràn khi zoom/kéo */
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  background: #000;
+  touch-action: none; /* Cực kỳ quan trọng: Ngăn trình duyệt cuộn trang khi vuốt trên Kiosk */
+}
+
+.preview-image-container img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  /* Bỏ transition mặc định để thao tác kéo thả ngón tay (Drag) không bị độ trễ (delay) */
+  user-select: none;
+  -webkit-user-drag: none; /* Chống hiển thị bóng mờ khi kéo ảnh HTML */
+}
