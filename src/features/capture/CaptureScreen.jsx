@@ -3,11 +3,20 @@ import { Button } from 'primereact/button'
 import { usePhotobooth } from '../../store/PhotoboothContext.jsx'
 import './CaptureScreen.css'
 
+// CẤU HÌNH TỶ LỆ CẮT CAMERA CỤC BỘ
+const CAPTURE_CONFIGS = {
+  'FRAME-4-doc-gau-xanh-ic': { capture: 6, target: 4, width: 4, height: 3 },
+  'FRAME-4-doc-da-banh': { capture: 6, target: 4, width: 4, height: 3 },
+  'FRAME-4-doc-da-banh-bai-bien': { capture: 6, target: 4, width: 4, height: 3 },
+  'default': { capture: 6, target: 4, width: 4, height: 3 }
+};
+
 export default function CaptureScreen() {
-  const { currentStep, nextStep, prevStep, selectedLayout, setCapturedPhotos } = usePhotobooth()
+  const { currentStep, nextStep, prevStep, selectedFrameId, expectedPoses, setCapturedPhotos } = usePhotobooth()
 
   const videoRef = useRef(null)
   const mediaStreamRef = useRef(null)
+  const intervalRef = useRef(null) // THÊM REF NÀY: Để dọn dẹp bộ đếm an toàn
 
   const [toastMessage, setToastMessage] = useState(null)
   const showToast = (message) => {
@@ -21,34 +30,14 @@ export default function CaptureScreen() {
   const [isDragging, setIsDragging] = useState(false)
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
 
-  const getLayoutConfig = (layoutType) => {
-    switch (layoutType) {
-      case 'strip-3': return { target: 3, capture: 5 }; 
-      case 'strip-4': return { target: 4, capture: 6 }; 
-      case 'grid-2x2': return { target: 4, capture: 6 }; 
-      case 'grid-6': return { target: 6, capture: 8 }; 
-      case 'grid-9': return { target: 9, capture: 12 }; 
-      case 'polaroid': return { target: 1, capture: 3 }; 
-      case 'single-4x6': return { target: 1, capture: 3 }; 
-      case 'asymmetric-3': return { target: 3, capture: 5 }; 
-      default: return { target: 4, capture: 6 };
-    }
-  }
-
-  const getLayoutAspectRatio = (layoutType) => {
-    switch (layoutType) {
-      case 'grid-2x2':
-      case 'polaroid': return { css: '1 / 1', val: 1 }; 
-      case 'single-4x6': return { css: '2 / 3', val: 2 / 3 }; 
-      case 'asymmetric-3': return { css: '3 / 4', val: 3 / 4 }; 
-      default: return { css: '4 / 3', val: 4 / 3 }; 
-    }
-  }
-
-  const config = getLayoutConfig(selectedLayout || 'strip-4')
-  const totalShots = config.capture 
-  const targetShots = config.target 
-  const ratioConfig = getLayoutAspectRatio(selectedLayout || 'strip-4')
+  const frameConf = CAPTURE_CONFIGS[selectedFrameId] || CAPTURE_CONFIGS['default'];
+  const totalShots = frameConf.capture;
+  const targetShots = expectedPoses || frameConf.target;
+  
+  const ratioConfig = { 
+    css: `${frameConf.width} / ${frameConf.height}`, 
+    val: frameConf.width / frameConf.height 
+  };
 
   const [currentShotIndex, setCurrentShotIndex] = useState(0)
   const [countdown, setCountdown] = useState(null)
@@ -57,31 +46,26 @@ export default function CaptureScreen() {
   const [isPicking, setIsPicking] = useState(false)
   const [selectedIndices, setSelectedIndices] = useState([])
 
-  // Khởi tạo camera một lần duy nhất, chạy ổn định suốt quá trình chụp
+  // STATE: THỜI GIAN ĐẾM NGƯỢC
+  const [selectedTimer, setSelectedTimer] = useState(3)
+  
+  // STATE: CỜ BẬT CHẾ ĐỘ TỰ ĐỘNG CHỤP
+  const [isAutoCapturing, setIsAutoCapturing] = useState(false)
+
   const startCamera = useCallback(async () => {
     try {
       const constraints = {
-        video: {
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-          frameRate: { ideal: 30 }
-        },
+        video: { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
         audio: false
       }
-
       mediaStreamRef.current = await navigator.mediaDevices.getUserMedia(constraints)
-      if (videoRef.current) {
-        videoRef.current.srcObject = mediaStreamRef.current
-      }
+      if (videoRef.current) videoRef.current.srcObject = mediaStreamRef.current
     } catch (err) {
       console.error("Lỗi khởi tạo camera:", err)
       try {
         mediaStreamRef.current = await navigator.mediaDevices.getUserMedia({ video: true, audio: false })
-        if (videoRef.current) {
-          videoRef.current.srcObject = mediaStreamRef.current
-        }
+        if (videoRef.current) videoRef.current.srcObject = mediaStreamRef.current
       } catch (fallbackErr) {
-        console.error("Vẫn không thể mở camera:", fallbackErr)
         showToast("Không thể kết nối camera!")
       }
     }
@@ -90,36 +74,49 @@ export default function CaptureScreen() {
   useEffect(() => {
     if (currentStep !== 3 || isPicking) return
     startCamera()
-
     return () => {
-      if (mediaStreamRef.current) {
-        mediaStreamRef.current.getTracks().forEach(track => track.stop())
-      }
+      if (mediaStreamRef.current) mediaStreamRef.current.getTracks().forEach(track => track.stop())
+      if (intervalRef.current) clearInterval(intervalRef.current) // Dọn dẹp bộ đếm khi unmount
     }
   }, [currentStep, isPicking, startCamera])
 
+  // ==============================================================
+  // VÒNG LẶP AUTO CHỤP: Tự động gọi đếm ngược khi đủ điều kiện
+  // ==============================================================
+  useEffect(() => {
+    if (isAutoCapturing && currentShotIndex < totalShots && countdown === null) {
+      // Nghỉ 1.5 giây giữa các shot để khách hàng tạo dáng mới (Shot đầu tiên thì chụp ngay không nghỉ)
+      const delay = currentShotIndex === 0 ? 0 : 1500; 
+      
+      const timer = setTimeout(() => {
+        startCountdownAndCapture();
+      }, delay);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [isAutoCapturing, currentShotIndex, countdown, totalShots]);
+
   const startCountdownAndCapture = () => {
     if (countdown !== null || currentShotIndex >= totalShots) return
-    let count = 3
+    let count = selectedTimer 
     setCountdown(count)
-    const interval = setInterval(() => {
+    
+    intervalRef.current = setInterval(() => {
       count -= 1
       if (count > 0) {
         setCountdown(count)
       } else {
-        clearInterval(interval)
+        clearInterval(intervalRef.current)
         setCountdown(null)
         triggerCapture()
       }
     }, 1000)
   }
 
-  // Chụp ảnh trực tiếp từ luồng video mượt mà, không gọi Backend gây xung đột phần cứng
   const triggerCapture = () => {
     if (!videoRef.current) return
     const videoEl = videoRef.current
     
-    // Lấy độ phân giải thực của luồng video (1920x1080 hoặc 1280x720) để đảm bảo độ nét cao
     const vw = videoEl.videoWidth || 1920
     const vh = videoEl.videoHeight || 1080
     const targetRatio = ratioConfig.val
@@ -146,7 +143,6 @@ export default function CaptureScreen() {
     ctx.translate(canvas.width, 0)
     ctx.scale(-1, 1)
     
-    // Cắt và vẽ khung hình chuẩn tỷ lệ từ video sang canvas
     ctx.drawImage(videoEl, startX, startY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight)
     
     let previewImageUrl = ""
@@ -156,7 +152,6 @@ export default function CaptureScreen() {
       previewImageUrl = canvas.toDataURL()
     }
     
-    // Hiệu ứng chớp sáng (Flash) mượt mà
     setIsFlashing(true)
     setTimeout(() => setIsFlashing(false), 500)
 
@@ -166,6 +161,7 @@ export default function CaptureScreen() {
     setCurrentShotIndex(nextIndex)
 
     if (nextIndex >= totalShots) {
+      setIsAutoCapturing(false) // Tắt chế độ tự động khi đã chụp đủ
       setTimeout(() => {
         const defaultSelected = Array.from({ length: targetShots }, (_, i) => i)
         setSelectedIndices(defaultSelected)
@@ -183,16 +179,23 @@ export default function CaptureScreen() {
     })
   }
 
-const handleConfirmPick = () => {
+  const handleConfirmPick = () => {
     const sortedIndices = [...selectedIndices].sort((a, b) => a - b)
     const finalPhotos = sortedIndices.map(i => capturedImages[i])
     
-    // Đảm bảo gọi đúng hàm setter để đẩy ảnh sang các bước sau
     if (typeof setCapturedPhotos === 'function') {
       setCapturedPhotos(finalPhotos)
     }
     
     nextStep()
+  }
+
+  // Chức năng nút "Chụp lại từ đầu"
+  const handleRetake = () => {
+    setCapturedImages([])
+    setCurrentShotIndex(0)
+    setIsPicking(false)
+    setIsAutoCapturing(false) // Reset lại cờ
   }
 
   const openPreview = (imgUrl) => { setPreviewImage(imgUrl); setZoomLevel(1); setPosition({ x: 0, y: 0 }) }
@@ -294,8 +297,30 @@ const handleConfirmPick = () => {
           </div>
 
           <div className="capture-footer">
-            <Button label="Quay lại" icon="pi pi-arrow-left" severity="secondary" outlined size="large" style={{ color: '#fff', borderColor: 'rgba(255,255,255,0.3)' }} onClick={prevStep} />
-            <Button label={countdown !== null ? "Đang đếm ngược..." : "Bấm chụp ngay"} icon="pi pi-camera" size="large" className="capture-action-btn" disabled={countdown !== null || currentShotIndex >= totalShots} onClick={startCountdownAndCapture} />
+            <Button label="Quay lại" icon="pi pi-arrow-left" severity="secondary" outlined size="large" style={{ color: '#fff', borderColor: 'rgba(255,255,255,0.3)' }} onClick={prevStep} disabled={isAutoCapturing} />
+            
+            <div className="timer-select-container">
+              <i className="pi pi-clock timer-icon"></i>
+              <select 
+                value={selectedTimer} 
+                onChange={(e) => setSelectedTimer(Number(e.target.value))}
+                className="timer-select"
+                disabled={isAutoCapturing} /* Khoá Dropdown khi đang chụp */
+              >
+                <option value={3}>3 Giây</option>
+                <option value={5}>5 Giây</option>
+                <option value={10}>10 Giây</option>
+              </select>
+            </div>
+
+            <Button 
+              label={isAutoCapturing ? "Đang chụp tự động..." : "Bấm chụp ngay"} 
+              icon={isAutoCapturing ? "pi pi-spin pi-spinner" : "pi pi-camera"} 
+              size="large" 
+              className="capture-action-btn" 
+              disabled={isAutoCapturing || currentShotIndex >= totalShots} 
+              onClick={() => setIsAutoCapturing(true)} /* NÚT NÀY GIỜ CHỈ CẦN BẬT CỜ AUTO LÀ CHẠY */
+            />
           </div>
         </section>
       ) : (
@@ -328,7 +353,7 @@ const handleConfirmPick = () => {
           </div>
 
           <div className="capture-footer" style={{ justifyContent: 'center', width: '100%' }}>
-            <Button label="Chụp lại từ đầu" icon="pi pi-refresh" severity="secondary" outlined size="large" style={{ color: '#fff', borderColor: 'rgba(255,255,255,0.3)' }} onClick={() => { setCapturedImages([]); setCurrentShotIndex(0); setIsPicking(false) }} />
+            <Button label="Chụp lại từ đầu" icon="pi pi-refresh" severity="secondary" outlined size="large" style={{ color: '#fff', borderColor: 'rgba(255,255,255,0.3)' }} onClick={handleRetake} />
             <Button label="Xác nhận & Tiếp tục" icon="pi pi-check" iconPos="right" size="large" disabled={selectedIndices.length !== targetShots} className="capture-action-btn" onClick={handleConfirmPick} />
           </div>
         </section>

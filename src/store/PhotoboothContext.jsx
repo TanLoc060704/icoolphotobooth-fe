@@ -7,7 +7,8 @@ const FINAL_STEP = 7
 
 export function PhotoboothProvider({ children }) {
   const [currentStep, setCurrentStep] = useState(INITIAL_STEP)
-  const [selectedLayout, setSelectedLayout] = useState(null)
+  const [selectedFrameId, setSelectedFrameId] = useState('FRAME-4-doc-gau-xanh-ic') // Frame ID mặc định
+  const [expectedPoses, setExpectedPoses] = useState(4) // Số ảnh mặc định cho frame
   const [selectedFilter, setSelectedFilter] = useState(null)
   const [capturedPhotos, setCapturedPhotos] = useState([])
   const [finalImage, setFinalImage] = useState(null)
@@ -22,7 +23,8 @@ export function PhotoboothProvider({ children }) {
 
   const resetKiosk = useCallback(() => {
     setCurrentStep(INITIAL_STEP)
-    setSelectedLayout(null)
+    setSelectedFrameId('FRAME-4-doc-gau-xanh-ic')
+    setExpectedPoses(4)
     setSelectedFilter(null)
     setCapturedPhotos([])
     setFinalImage(null)
@@ -31,8 +33,10 @@ export function PhotoboothProvider({ children }) {
   const value = useMemo(
     () => ({
       currentStep,
-      selectedLayout,
-      setSelectedLayout,
+      selectedFrameId,
+      setSelectedFrameId,
+      expectedPoses,
+      setExpectedPoses,
       selectedFilter,
       setSelectedFilter,
       capturedPhotos,
@@ -45,7 +49,8 @@ export function PhotoboothProvider({ children }) {
     }),
     [
       currentStep,
-      selectedLayout,
+      selectedFrameId,
+      expectedPoses,
       selectedFilter,
       capturedPhotos,
       finalImage,

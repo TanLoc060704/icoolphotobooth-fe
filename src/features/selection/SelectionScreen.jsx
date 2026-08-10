@@ -1,56 +1,139 @@
-import { useState, useEffect } from 'react'
-import { Button } from 'primereact/button'
-import { usePhotobooth } from '../../store/PhotoboothContext.jsx'
-import './SelectionScreen.css'
+import { useState, useEffect } from 'react';
+import { Button } from 'primereact/button';
+import { usePhotobooth } from '../../store/PhotoboothContext.jsx';
+import './SelectionScreen.css';
 
+// ==========================================
+// 1. CẤU HÌNH DỮ LIỆU & MẢNG ẢO THUẬT
+// ==========================================
+export const FRAME_DATA = {
+  'FRAME-4-doc-gau-xanh-ic': {
+    name: 'Gấu Xanh ICOOL',
+    poses: 4,
+    aspectRatio: '370 x 115',
+    previewUrl: '/frames/FRAME-4-doc-gau-xanh-ic.png',
+  },
+  'FRAME-4-doc-da-banh': {
+    name: 'EURO Xanh',
+    poses: 4,
+    aspectRatio: '356 x 108',
+    previewUrl: '/frames/FRAME-4-doc-da-banh.png',
+  },
+  'FRAME-4-doc-da-banh-bai-bien': {
+    name: 'Mùa Hè Biển',
+    poses: 4,
+    aspectRatio: '340 x 105',
+    previewUrl: '/frames/FRAME-4-doc-da-banh-bai-bien.png',
+  },
+};
+
+const AVAILABLE_FRAMES = Object.keys(FRAME_DATA);
+
+// Thêm 2 clone ở hai đầu để lấp đầy viewport 3 items (Chỉ khai báo 1 lần ở đây)
+const EXTENDED_FRAMES = [
+  ...AVAILABLE_FRAMES.slice(-2), 
+  ...AVAILABLE_FRAMES,
+  ...AVAILABLE_FRAMES.slice(0, 2)
+];
+
+// ==========================================
+// 2. COMPONENT THẺ HIỂN THỊ
+// ==========================================
+const FrameCard = ({ frameId, isActive }) => {
+  const frame = FRAME_DATA[frameId];
+  return (
+    <div className={`frame-slide-card ${isActive ? 'active' : ''}`}>
+      <div className="frame-image-wrapper">
+        <img src={frame.previewUrl} alt={frame.name} />
+      </div>
+      <div className="frame-info">
+        <h3>{frame.name}</h3>
+        <div className="frame-configs">
+          <span className="config-badge">📸 {frame.poses} Ảnh</span>
+          <span className="config-badge">📐 {frame.aspectRatio}</span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ==========================================
+// 3. MÀN HÌNH CHÍNH
+// ==========================================
 export default function SelectionScreen() {
-  // Lấy các hàm setter từ Context (giả định Context của bạn có hỗ trợ cập nhật state layout và filter, 
-  // hoặc hàm tổng quát như updateConfig. Nếu Context chỉ có nextStep, bạn cần bổ sung thêm vào Context nhé)
-  const { currentStep, nextStep, prevStep, resetKiosk, setSelectedLayout, setSelectedFilter } = usePhotobooth()
+  const { 
+    currentStep, nextStep, prevStep, resetKiosk, 
+    selectedFrameId, setSelectedFrameId, setExpectedPoses 
+  } = usePhotobooth();
+  
+  // States
+  const [currentIndex, setCurrentIndex] = useState(() => {
+    const idx = AVAILABLE_FRAMES.indexOf(selectedFrameId);
+    return (idx >= 0 ? idx : 0) + 2; 
+  });
+  const [isJumping, setIsJumping] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(60);
 
-  const [layout, setLayout] = useState('strip-4')
-  const [filter, setFilter] = useState('original')
-  const [timeLeft, setTimeLeft] = useState(60)
-
+  // Countdown Timer
   useEffect(() => {
     if (currentStep !== 2) {
-      setTimeLeft(60)
-      return
+      setTimeLeft(60);
+      return;
     }
-
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
-          clearInterval(timer)
-          resetKiosk()
-          return 0
+          clearInterval(timer);
+          resetKiosk();
+          return 0;
         }
-        return prev - 1
-      })
-    }, 1000)
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [currentStep, resetKiosk]);
 
-    return () => clearInterval(timer)
-  }, [currentStep, resetKiosk])
+  if (currentStep !== 2) return null;
 
-  if (currentStep !== 2) {
-    return null
-  }
-
-  // Khi bấm tiếp tục, lưu giá trị lên Context để các bước sau (Capture, Result) đọc được
+  // Handlers
   const handleContinue = () => {
-    if (typeof setSelectedLayout === 'function') setSelectedLayout(layout)
-    if (typeof setSelectedFilter === 'function') setSelectedFilter(filter)
-    nextStep()
-  }
+    const selectedId = EXTENDED_FRAMES[currentIndex];
+    const frameConfig = FRAME_DATA[selectedId];
+    if (typeof setSelectedFrameId === 'function') setSelectedFrameId(selectedId);
+    if (typeof setExpectedPoses === 'function') setExpectedPoses(frameConfig.poses);
+    nextStep();
+  };
 
-  const progressPercent = (timeLeft / 60) * 100
+  const handlePrev = () => {
+    if (isJumping || currentIndex <= 0) return; 
+    setCurrentIndex((prev) => prev - 1);
+  };
+  
+  const handleNext = () => {
+    if (isJumping || currentIndex >= EXTENDED_FRAMES.length - 1) return; 
+    setCurrentIndex((prev) => prev + 1);
+  };
 
+  const handleTransitionEnd = () => {
+    if (currentIndex <= 1) {
+      setIsJumping(true); 
+      setCurrentIndex(currentIndex + AVAILABLE_FRAMES.length); 
+      setTimeout(() => setIsJumping(false), 50); 
+    } 
+    else if (currentIndex >= EXTENDED_FRAMES.length - 2) {
+      setIsJumping(true);
+      setCurrentIndex(currentIndex - AVAILABLE_FRAMES.length); 
+      setTimeout(() => setIsJumping(false), 50);
+    }
+  };
+
+  const progressPercent = (timeLeft / 60) * 100;
+
+  // Render
   return (
     <section className="kiosk-selection-container">
-      
-      <div className="selection-header">
-        <h2 className="selection-title">Lựa chọn trải nghiệm</h2>
-        
+      <div className="selection-header" style={{ zIndex: 10 }}>
+        <h2 className="selection-title">Lựa chọn layout </h2>
         <div className="countdown-container">
           <div className="countdown-text">
             Thời gian lựa chọn: <span>{timeLeft} giây</span>
@@ -61,207 +144,36 @@ export default function SelectionScreen() {
         </div>
       </div>
 
-      <div className="selection-grid">
+      <div className="frame-slideshow-container">
+        <Button icon="pi pi-chevron-left" rounded className="slideshow-nav-btn prev" onClick={handlePrev} />
         
-        {/* 1. Nhóm Dải dọc (Photo Strips) */}
-        <div className="selection-group">
-          <h3>1. DẠNG DẢI DỌC (PHOTO STRIPS)</h3>
-          <div className="options-scroll-row">
-            
-            <div 
-              className={`kiosk-card ${layout === 'strip-4' ? 'active' : ''}`}
-              onClick={() => setLayout('strip-4')}
-            >
-              <div className="layout-preview-icon">
-                <div className="strip-mockup double">
-                  <div className="strip-cell header-footer"></div>
-                  <div className="strip-cell"></div>
-                  <div className="strip-cell"></div>
-                  <div className="strip-cell"></div>
-                  <div className="strip-cell header-footer"></div>
-                </div>
-                <div className="strip-mockup double double-right">
-                  <div className="strip-cell header-footer"></div>
-                  <div className="strip-cell"></div>
-                  <div className="strip-cell"></div>
-                  <div className="strip-cell"></div>
-                  <div className="strip-cell header-footer"></div>
-                </div>
+        <div className="frame-slideshow-viewport">
+          <div 
+            // Cập nhật: Thêm class is-jumping khi đang nhảy
+            className={`frame-slideshow-track ${isJumping ? 'is-jumping' : ''}`} 
+            style={{ 
+              transform: `translateX(-${(currentIndex - 1) * 320}px)`,
+              transition: isJumping ? 'none' : 'transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1)'
+            }}
+            onTransitionEnd={handleTransitionEnd}
+          >
+            {EXTENDED_FRAMES.map((frameId, idx) => (
+              <div className="frame-slide-item" key={`${frameId}-${idx}`}>
+                <FrameCard frameId={frameId} isActive={idx === currentIndex} />
               </div>
-              <span>Dải 4 Ô (1x4)</span>
-            </div>
-
-            <div 
-              className={`kiosk-card ${layout === 'strip-3' ? 'active' : ''}`}
-              onClick={() => setLayout('strip-3')}
-            >
-              <div className="layout-preview-icon">
-                <div className="strip-mockup double">
-                  <div className="strip-cell header-footer"></div>
-                  <div className="strip-cell"></div>
-                  <div className="strip-cell"></div>
-                  <div className="strip-cell header-footer"></div>
-                </div>
-                <div className="strip-mockup double double-right">
-                  <div className="strip-cell header-footer"></div>
-                  <div className="strip-cell"></div>
-                  <div className="strip-cell"></div>
-                  <div className="strip-cell header-footer"></div>
-                </div>
-              </div>
-              <span>Dải 3 Ô (1x3)</span>
-            </div>
-
+            ))}
           </div>
         </div>
 
-        {/* 2. Nhóm Dạng lưới (Grid Layouts) */}
-        <div className="selection-group">
-          <h3>2. DẠNG LƯỚI (GRID LAYOUTS)</h3>
-          <div className="options-scroll-row">
-            
-            <div 
-              className={`kiosk-card ${layout === 'grid-2x2' ? 'active' : ''}`}
-              onClick={() => setLayout('grid-2x2')}
-            >
-              <div className="layout-preview-icon">
-                <div className="grid-mockup cols-2">
-                  <div className="grid-cell"></div><div className="grid-cell"></div>
-                  <div className="grid-cell"></div><div className="grid-cell"></div>
-                </div>
-              </div>
-              <span>Lưới 4 Ô (2x2)</span>
-            </div>
-
-            <div 
-              className={`kiosk-card ${layout === 'grid-6' ? 'active' : ''}`}
-              onClick={() => setLayout('grid-6')}
-            >
-              <div className="layout-preview-icon">
-                <div className="grid-mockup cols-3">
-                  <div className="grid-cell"></div><div className="grid-cell"></div><div className="grid-cell"></div>
-                  <div className="grid-cell"></div><div className="grid-cell"></div><div className="grid-cell"></div>
-                </div>
-              </div>
-              <span>Lưới 6 Ô</span>
-            </div>
-
-            <div 
-              className={`kiosk-card ${layout === 'grid-9' ? 'active' : ''}`}
-              onClick={() => setLayout('grid-9')}
-            >
-              <div className="layout-preview-icon">
-                <div className="grid-mockup cols-3-3">
-                  <div className="grid-cell"></div><div className="grid-cell"></div><div className="grid-cell"></div>
-                  <div className="grid-cell"></div><div className="grid-cell"></div><div className="grid-cell"></div>
-                  <div className="grid-cell"></div><div className="grid-cell"></div><div className="grid-cell"></div>
-                </div>
-              </div>
-              <span>Lưới 9 Ô</span>
-            </div>
-
-          </div>
-        </div>
-
-        {/* 3. Nhóm Polaroid & Khung Đơn */}
-        <div className="selection-group">
-          <h3>3. POLAROID & KHUNG SÁNG TẠO</h3>
-          <div className="options-scroll-row">
-            
-            <div 
-              className={`kiosk-card ${layout === 'polaroid' ? 'active' : ''}`}
-              onClick={() => setLayout('polaroid')}
-            >
-              <div className="layout-preview-icon">
-                <div className="single-mockup" style={{ height: '36px' }}>
-                  <div className="single-img-area"></div>
-                  <div style={{ height: '6px', background: '#e2e8f0' }}></div>
-                </div>
-              </div>
-              <span>Polaroid Cổ Điển</span>
-            </div>
-
-            <div 
-              className={`kiosk-card ${layout === 'single-4x6' ? 'active' : ''}`}
-              onClick={() => setLayout('single-4x6')}
-            >
-              <div className="layout-preview-icon">
-                <div className="single-mockup" style={{ width: '36px', height: '30px' }}>
-                  <div className="single-img-area"></div>
-                  <div className="single-bottom-bar"></div>
-                </div>
-              </div>
-              <span>Khung Đơn (4x6)</span>
-            </div>
-
-            <div 
-              className={`kiosk-card ${layout === 'asymmetric-3' ? 'active' : ''}`}
-              onClick={() => setLayout('asymmetric-3')}
-            >
-              <div className="layout-preview-icon" style={{ gap: '2px' }}>
-                <div style={{ width: '14px', height: '32px', background: '#fff', borderRadius: '2px', padding: '2px' }}>
-                  <div style={{ width: '100%', height: '100%', background: '#0a192f', borderRadius: '1px' }}></div>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                  <div style={{ width: '12px', height: '15px', background: '#fff', borderRadius: '2px', padding: '2px' }}>
-                    <div style={{ width: '100%', height: '100%', background: '#0a192f', borderRadius: '1px' }}></div>
-                  </div>
-                  <div style={{ width: '12px', height: '15px', background: '#fff', borderRadius: '2px', padding: '2px' }}>
-                    <div style={{ width: '100%', height: '100%', background: '#0a192f', borderRadius: '1px' }}></div>
-                  </div>
-                </div>
-              </div>
-              <span>Layout 3 Ảnh</span>
-            </div>
-
-          </div>
-        </div>
-
-        {/* 4. Nhóm Bộ lọc màu (Filter) */}
-        <div className="selection-group">
-          <h3>4. CHỌN HIỆU ỨNG MÀU (FILTER)</h3>
-          <div className="options-scroll-row">
-            <div className={`kiosk-card ${filter === 'original' ? 'active' : ''}`} onClick={() => setFilter('original')}>
-              <i className="pi pi-palette" style={{ fontSize: '1.3rem', margin: '4px 0' }}></i>
-              <span>Màu Gốc</span>
-            </div>
-            <div className={`kiosk-card ${filter === 'bw' ? 'active' : ''}`} onClick={() => setFilter('bw')}>
-              <i className="pi pi-moon" style={{ fontSize: '1.3rem', margin: '4px 0' }}></i>
-              <span>Trắng Đen</span>
-            </div>
-            <div className={`kiosk-card ${filter === 'vintage' ? 'active' : ''}`} onClick={() => setFilter('vintage')}>
-              <i className="pi pi-camera" style={{ fontSize: '1.3rem', margin: '4px 0' }}></i>
-              <span>Vintage</span>
-            </div>
-            <div className={`kiosk-card ${filter === 'cinematic' ? 'active' : ''}`} onClick={() => setFilter('cinematic')}>
-              <i className="pi pi-video" style={{ fontSize: '1.3rem', margin: '4px 0' }}></i>
-              <span>Cinematic</span>
-            </div>
-          </div>
-        </div>
-
+        <Button icon="pi pi-chevron-right" rounded className="slideshow-nav-btn next" onClick={handleNext} />
       </div>
 
-      <div className="selection-footer">
-        <Button 
-          label="Quay lại" 
-          icon="pi pi-arrow-left" 
-          severity="secondary" 
-          outlined 
-          size="large"
-          style={{ color: '#fff', borderColor: 'rgba(255,255,255,0.3)' }}
-          onClick={prevStep} 
-        />
-        <Button 
-          label="Tiếp tục chụp" 
-          icon="pi pi-arrow-right" 
-          iconPos="right"
-          size="large" 
-          className="selection-next-btn"
-          onClick={handleContinue} 
-        />
+      <div className="selection-footer" style={{ zIndex: 10 }}>
+        <Button label="Quay lại" icon="pi pi-arrow-left" severity="secondary" outlined size="large"
+          style={{ color: '#fff', borderColor: 'rgba(255,255,255,0.3)' }} onClick={prevStep} />
+        <Button label="Tiếp tục chụp" icon="pi pi-arrow-right" iconPos="right" size="large" 
+          className="selection-next-btn" onClick={handleContinue} />
       </div>
-
     </section>
-  )
+  );
 }

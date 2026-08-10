@@ -48,12 +48,12 @@
 }
 
 /* =========================================
-   CAMERA VIEWPORT (Đã sửa tỷ lệ động & Phóng to)
+   CAMERA VIEWPORT (Tỷ lệ động & Phóng to)
 ========================================= */
 .camera-viewport-wrapper {
   position: relative;
-  height: 65vh; /* Đã phóng to camera lên */
-  width: auto; /* Bắt buộc để aspect-ratio tự tính toán chiều ngang */
+  height: 65vh; 
+  width: auto; 
   max-width: 95vw;
   max-height: 800px;
   background: #000000;
@@ -67,12 +67,11 @@
   margin: 0 auto;
 }
 
-/* Dùng object-fit cover để tự động crop phần thừa video theo khung */
 .camera-stream-preview {
   width: 100%;
   height: 100%;
   object-fit: cover; 
-  transform: scaleX(-1); /* Hiệu ứng gương */
+  transform: scaleX(-1); 
 }
 
 /* =========================================
@@ -146,8 +145,8 @@
 }
 
 .thumb-slot {
-  height: 65px; /* Tăng kích thước ảnh thu nhỏ */
-  width: auto; /* Tự ăn theo tỷ lệ aspect-ratio */
+  height: 65px; 
+  width: auto; 
   background: rgba(255, 255, 255, 0.05);
   border: 2px dashed rgba(255, 255, 255, 0.2);
   border-radius: 8px;
@@ -195,7 +194,7 @@
   transition: all 0.2s ease;
   background: #000;
   width: 100%;
-  height: auto; /* Chiều cao tự tính theo aspect-ratio */
+  height: auto; 
 }
 
 .pick-card img {
@@ -240,6 +239,7 @@
   display: flex;
   gap: 1.5rem;
   flex-shrink: 0;
+  align-items: center; /* Căn giữa các nút bấm và ô chọn thời gian theo chiều dọc */
 }
 
 .capture-action-btn {
@@ -294,18 +294,6 @@
 /* =========================================
    PICK CARD ACTIONS (Nút Chọn & Xem trên ảnh)
 ========================================= */
-.pick-card {
-  position: relative;
-  border-radius: 16px;
-  overflow: hidden;
-  border: 3px solid rgba(255, 255, 255, 0.2);
-  transition: all 0.2s ease;
-  background: #000;
-  width: 100%;
-  height: auto; 
-}
-
-/* Thanh chứa 2 nút bấm nằm dưới đáy ảnh */
 .pick-card-actions {
   position: absolute;
   bottom: 0;
@@ -369,28 +357,30 @@
   transform: scale(1.1);
 }
 
-/* Khung chứa ảnh để hỗ trợ Zoom */
 .preview-image-container {
   width: 80%;
   height: 75vh;
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden; /* Giấu phần ảnh bị tràn khi zoom quá to */
+  overflow: hidden; 
   border: 2px solid rgba(255, 255, 255, 0.1);
   border-radius: 16px;
   background: #000;
+  touch-action: none;
 }
 
 .preview-image-container img {
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
-  transition: transform 0.2s ease-out;
+  user-select: none;
+  -webkit-user-drag: none;
   transform-origin: center center;
+  /* Thêm dòng dưới nếu muốn ảnh vuốt mượt khi nhả chuột */
+  transition: transform 0.2s ease-out; 
 }
 
-/* Bộ điều khiển Zoom In / Zoom Out */
 .preview-zoom-controls {
   margin-top: 1.5rem;
   display: flex;
@@ -400,25 +390,57 @@
   border-radius: 50px;
 }
 
-/* Khung chứa ảnh để hỗ trợ Zoom */
-.preview-image-container {
-  width: 80%;
-  height: 75vh;
+/* =========================================
+   TIMER SELECT DROPDOWN (Chọn thời gian chụp)
+========================================= */
+.timer-select-container {
   display: flex;
   align-items: center;
-  justify-content: center;
-  overflow: hidden; /* Giấu phần ảnh bị tràn khi zoom/kéo */
-  border: 2px solid rgba(255, 255, 255, 0.1);
-  border-radius: 16px;
-  background: #000;
-  touch-action: none; /* Cực kỳ quan trọng: Ngăn trình duyệt cuộn trang khi vuốt trên Kiosk */
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 8px;
+  padding: 0 1rem;
+  backdrop-filter: blur(10px);
+  transition: all 0.3s ease;
 }
 
-.preview-image-container img {
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
-  /* Bỏ transition mặc định để thao tác kéo thả ngón tay (Drag) không bị độ trễ (delay) */
-  user-select: none;
-  -webkit-user-drag: none; /* Chống hiển thị bóng mờ khi kéo ảnh HTML */
+.timer-select-container:hover, 
+.timer-select-container:focus-within {
+  border-color: #00ffcc;
+  box-shadow: 0 0 15px rgba(0, 255, 204, 0.3);
+}
+
+.timer-icon {
+  color: #00ffcc;
+  font-size: 1.2rem;
+  margin-right: 0.5rem;
+}
+
+.timer-select {
+  background: transparent;
+  color: #ffffff;
+  border: none;
+  font-size: 1.1rem;
+  font-weight: 700;
+  padding: 0.8rem 0;
+  outline: none;
+  cursor: pointer;
+  appearance: none; 
+  -webkit-appearance: none;
+  padding-right: 1.5rem;
+  background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23ffffff%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
+  background-repeat: no-repeat;
+  background-position: right center;
+  background-size: 12px auto;
+}
+
+.timer-select option {
+  background: #0f172a;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.timer-select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
