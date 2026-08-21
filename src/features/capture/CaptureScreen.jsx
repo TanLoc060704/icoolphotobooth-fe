@@ -6,6 +6,7 @@ import './CaptureScreen.css'
 const CAMERA_SOCKET_URL = 'ws://localhost:8080/'
 const CAPTURE_HEADER = 'CAPTURE:'
 const CAPTURE_HEADER_LENGTH = 8
+const PHOTO_URL_PREFIX = 'PHOTO_URL:'
 const CAPTURE_RESPONSE_TIMEOUT_MS = 30000
 const MAX_CAPTURED_IMAGES = 6
 const SHOT_DELAY_MS = 1500
@@ -28,8 +29,10 @@ export default function CaptureScreen() {
   } = usePhotobooth()
 
   const socketRef = useRef(null)
+  const liveViewImageRef = useRef(null)
   const latestFrameBlobRef = useRef(null)
   const liveFrameUrlRef = useRef(null)
+  const hasLiveViewRef = useRef(false)
   const capturedObjectUrlsRef = useRef(new Set())
   const currentShotIndexRef = useRef(0)
   const countdownIntervalRef = useRef(null)
@@ -41,7 +44,7 @@ export default function CaptureScreen() {
   const isWaitingForCaptureRef = useRef(false)
 
   const [connectionStatus, setConnectionStatus] = useState('connecting')
-  const [liveViewFrame, setLiveViewFrame] = useState(null)
+  const [hasLiveView, setHasLiveView] = useState(false)
   const [toastMessage, setToastMessage] = useState(null)
   const [previewImage, setPreviewImage] = useState(null)
   const [zoomLevel, setZoomLevel] = useState(1)
@@ -84,16 +87,12 @@ export default function CaptureScreen() {
     toastTimeoutRef.current = setTimeout(() => setToastMessage(null), 3000)
   }, [])
 
-  const handleCapturedImage = useCallback((jpegBuffer) => {
-    if (!isWaitingForCaptureRef.current || jpegBuffer.byteLength === 0) return
-
+  const completeCapture = useCallback((capturedUrl) => {
     clearTimeout(captureResponseTimeoutRef.current)
     captureResponseTimeoutRef.current = null
     isWaitingForCaptureRef.current = false
     setIsWaitingForCapture(false)
 
-    const capturedUrl = URL.createObjectURL(new Blob([jpegBuffer], { type: 'image/jpeg' }))
-    capturedObjectUrlsRef.current.add(capturedUrl)
     setCapturedImages((previous) => [...previous, capturedUrl].slice(-MAX_CAPTURED_IMAGES))
 
     setIsFlashing(true)
@@ -112,6 +111,32 @@ export default function CaptureScreen() {
     }
   }, [targetShots, totalShots])
 
+  const handleCapturedImage = useCallback((jpegBuffer) => {
+    if (!isWaitingForCaptureRef.current || jpegBuffer.byteLength === 0) return
+
+    const capturedUrl = URL.createObjectURL(new Blob([jpegBuffer], { type: 'image/jpeg' }))
+    capturedObjectUrlsRef.current.add(capturedUrl)
+    completeCapture(capturedUrl)
+  }, [completeCapture])
+
+  const handleUploadedPhoto = useCallback((message) => {
+    if (!message.startsWith(PHOTO_URL_PREFIX)) return false
+
+    try {
+      const photo = JSON.parse(message.slice(PHOTO_URL_PREFIX.length))
+      console.log('Uploaded photo:', photo)
+
+      if (photo?.url && typeof photo.url === 'string') {
+        completeCapture(photo.url)
+      }
+    } catch (error) {
+      console.error('Invalid PHOTO_URL message:', error)
+      showToast('Khong doc duoc duong dan anh da upload!')
+    }
+
+    return true
+  }, [completeCapture, showToast])
+
   useEffect(() => {
     if (currentStep !== 3) return undefined
 
@@ -123,6 +148,11 @@ export default function CaptureScreen() {
       setConnectionStatus('connected')
     }
     socket.onmessage = (event) => {
+      if (typeof event.data === 'string') {
+        if (handleUploadedPhoto(event.data)) return
+        return
+      }
+
       if (!(event.data instanceof ArrayBuffer)) return
 
       const buffer = event.data
@@ -144,7 +174,11 @@ export default function CaptureScreen() {
 
       latestFrameBlobRef.current = jpegBlob
       liveFrameUrlRef.current = nextUrl
-      setLiveViewFrame(nextUrl)
+      if (liveViewImageRef.current) liveViewImageRef.current.src = nextUrl
+      if (!hasLiveViewRef.current) {
+        hasLiveViewRef.current = true
+        setHasLiveView(true)
+      }
 
       if (previousUrl) URL.revokeObjectURL(previousUrl)
     }
@@ -177,12 +211,13 @@ export default function CaptureScreen() {
       }
       if (socketRef.current === socket) socketRef.current = null
       latestFrameBlobRef.current = null
+      hasLiveViewRef.current = false
       if (liveFrameUrlRef.current) {
         URL.revokeObjectURL(liveFrameUrlRef.current)
         liveFrameUrlRef.current = null
       }
     }
-  }, [clearCaptureTimers, currentStep, handleCapturedImage, showToast])
+  }, [clearCaptureTimers, currentStep, handleCapturedImage, handleUploadedPhoto, showToast])
 
   useEffect(() => () => {
     clearCaptureTimers()
@@ -381,9 +416,13 @@ export default function CaptureScreen() {
           </div>
 
           <div className="camera-viewport-wrapper" style={{ aspectRatio: ratioConfig.css }}>
-            {liveViewFrame ? (
-              <img className="live-view-frame" src={liveViewFrame} alt="Live view từ máy ảnh" />
-            ) : (
+            <img
+              ref={liveViewImageRef}
+              className="live-view-frame"
+              alt="Live view từ máy ảnh"
+              style={{ visibility: hasLiveView ? 'visible' : 'hidden' }}
+            />
+            {!hasLiveView && (
               <div className="live-view-status">
                 {connectionStatus === 'connecting' ? 'Đang kết nối máy ảnh...' : 'Chưa nhận được hình ảnh từ máy ảnh'}
               </div>
@@ -420,7 +459,7 @@ export default function CaptureScreen() {
               icon={isAutoCapturing ? 'pi pi-spin pi-spinner' : 'pi pi-camera'}
               size="large"
               className="capture-action-btn"
-              disabled={isAutoCapturing || currentShotIndex >= totalShots || connectionStatus !== 'connected' || !liveViewFrame}
+              disabled={isAutoCapturing || currentShotIndex >= totalShots || connectionStatus !== 'connected' || !hasLiveView}
               onClick={handleStartAutoCapture}
             />
           </div>
