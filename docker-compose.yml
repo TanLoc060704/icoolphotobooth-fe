@@ -1,5 +1,7 @@
 services:
   web:
+    image: feicoolphotobooth-web
+    container_name: feicoolphotobooth-web
     build:
       context: .
       dockerfile: Dockerfile
