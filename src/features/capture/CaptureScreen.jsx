@@ -3,7 +3,7 @@ import { Button } from 'primereact/button'
 import { usePhotobooth } from '../../store/PhotoboothContext.jsx'
 import './CaptureScreen.css'
 
-const CAMERA_SOCKET_URL = 'ws://localhost:8080/'
+const CAMERA_SOCKET_URL = 'ws://localhost:5050/'
 const CAPTURE_HEADER = 'CAPTURE:'
 const CAPTURE_HEADER_LENGTH = 8
 const PHOTO_URL_PREFIX = 'PHOTO_URL:'
