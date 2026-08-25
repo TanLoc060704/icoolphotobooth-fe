@@ -3,7 +3,7 @@ import { Button } from 'primereact/button'
 import { usePhotobooth } from '../../store/PhotoboothContext.jsx'
 import './CaptureScreen.css'
 
-const CAMERA_SOCKET_URL = 'ws://localhost:5050/'
+const CAMERA_SOCKET_URL = 'ws://localhost:8080/'
 const CAPTURE_HEADER = 'CAPTURE:'
 const CAPTURE_HEADER_LENGTH = 8
 const PHOTO_URL_PREFIX = 'PHOTO_URL:'
@@ -42,6 +42,7 @@ export default function CaptureScreen() {
   const captureResponseTimeoutRef = useRef(null)
   const toastTimeoutRef = useRef(null)
   const isWaitingForCaptureRef = useRef(false)
+  const pendingOfficialPhotoSlotsRef = useRef([])
 
   const [connectionStatus, setConnectionStatus] = useState('connecting')
   const [hasLiveView, setHasLiveView] = useState(false)
@@ -111,11 +112,38 @@ export default function CaptureScreen() {
     }
   }, [targetShots, totalShots])
 
+  const replaceTemporaryPhoto = useCallback((officialUrl) => {
+    const pendingSlot = pendingOfficialPhotoSlotsRef.current.shift()
+    if (!pendingSlot) return false
+
+    setCapturedImages((previous) => {
+      if (previous[pendingSlot.index] !== pendingSlot.temporaryUrl) return previous
+
+      const nextImages = [...previous]
+      nextImages[pendingSlot.index] = officialUrl
+      return nextImages
+    })
+    setPreviewImage((currentPreview) => (
+      currentPreview === pendingSlot.temporaryUrl ? officialUrl : currentPreview
+    ))
+
+    if (capturedObjectUrlsRef.current.has(pendingSlot.temporaryUrl)) {
+      URL.revokeObjectURL(pendingSlot.temporaryUrl)
+      capturedObjectUrlsRef.current.delete(pendingSlot.temporaryUrl)
+    }
+
+    return true
+  }, [])
+
   const handleCapturedImage = useCallback((jpegBuffer) => {
     if (!isWaitingForCaptureRef.current || jpegBuffer.byteLength === 0) return
 
     const capturedUrl = URL.createObjectURL(new Blob([jpegBuffer], { type: 'image/jpeg' }))
     capturedObjectUrlsRef.current.add(capturedUrl)
+    pendingOfficialPhotoSlotsRef.current.push({
+      index: currentShotIndexRef.current,
+      temporaryUrl: capturedUrl,
+    })
     completeCapture(capturedUrl)
   }, [completeCapture])
 
@@ -127,7 +155,9 @@ export default function CaptureScreen() {
       console.log('Uploaded photo:', photo)
 
       if (photo?.url && typeof photo.url === 'string') {
-        completeCapture(photo.url)
+        if (!replaceTemporaryPhoto(photo.url)) {
+          completeCapture(photo.url)
+        }
       }
     } catch (error) {
       console.error('Invalid PHOTO_URL message:', error)
@@ -135,7 +165,7 @@ export default function CaptureScreen() {
     }
 
     return true
-  }, [completeCapture, showToast])
+  }, [completeCapture, replaceTemporaryPhoto, showToast])
 
   useEffect(() => {
     if (currentStep !== 3) return undefined
@@ -212,6 +242,7 @@ export default function CaptureScreen() {
       if (socketRef.current === socket) socketRef.current = null
       latestFrameBlobRef.current = null
       hasLiveViewRef.current = false
+      pendingOfficialPhotoSlotsRef.current = []
       if (liveFrameUrlRef.current) {
         URL.revokeObjectURL(liveFrameUrlRef.current)
         liveFrameUrlRef.current = null
@@ -224,6 +255,7 @@ export default function CaptureScreen() {
     clearTimeout(toastTimeoutRef.current)
     capturedObjectUrlsRef.current.forEach((url) => URL.revokeObjectURL(url))
     capturedObjectUrlsRef.current.clear()
+    pendingOfficialPhotoSlotsRef.current = []
   }, [clearCaptureTimers])
 
   const triggerCapture = useCallback(() => {
@@ -323,6 +355,7 @@ export default function CaptureScreen() {
     clearCaptureTimers()
     capturedObjectUrlsRef.current.forEach((url) => URL.revokeObjectURL(url))
     capturedObjectUrlsRef.current.clear()
+    pendingOfficialPhotoSlotsRef.current = []
     isWaitingForCaptureRef.current = false
     currentShotIndexRef.current = 0
     setCapturedImages([])
