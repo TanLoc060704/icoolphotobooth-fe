@@ -129,7 +129,7 @@ const PhotoSlot = ({ src, x, y, width, height, index, radius = 0 }) => {
     return <Rect x={x} y={y} width={width} height={height} fill="rgba(255, 255, 255, 0.08)" stroke="rgba(255, 255, 255, 0.12)" strokeWidth={2} cornerRadius={radius} />
   }
 
-  return <KonvaImage image={image} x={x} y={y} width={width} height={height} crop={getCoverCrop(image, width, height)} cornerRadius={radius} />
+  return <KonvaImage image={image} x={x + width} y={y} width={width} height={height} scaleX={-1} crop={getCoverCrop(image, width, height)} cornerRadius={radius} />
 }
 
 // ==========================================

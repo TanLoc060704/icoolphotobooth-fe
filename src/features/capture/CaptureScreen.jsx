@@ -425,7 +425,7 @@ export default function CaptureScreen() {
               alt="Ảnh xem trước"
               draggable="false"
               style={{
-                transform: `translate(${position.x}px, ${position.y}px) scale(${zoomLevel})`,
+                transform: `translate(${position.x}px, ${position.y}px) scaleX(-1) scale(${zoomLevel})`,
                 cursor: zoomLevel > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default',
                 transition: isDragging ? 'none' : 'transform 0.2s ease',
               }}
