@@ -474,7 +474,7 @@ export default function CaptureScreen() {
       {!isPicking ? (
         <section className="kiosk-capture-container">
           <div className="capture-header">
-            <div className="capture-step-tag">Bước 03 / 07 (Chụp {totalShots} chọn {targetShots})</div>
+            {/* <div className="capture-step-tag">Bước 03 / 07 (Chụp {totalShots} chọn {targetShots})</div> */}
             <h2 className="capture-title">
               {currentShotIndex < totalShots ? `Tạo dáng nào! (Ảnh ${currentShotIndex + 1} / ${totalShots})` : 'Đang hoàn tất...'}
             </h2>
@@ -513,11 +513,17 @@ export default function CaptureScreen() {
             <Button label="Quay lại" icon="pi pi-arrow-left" severity="secondary" outlined size="large" style={{ color: '#fff', borderColor: 'rgba(255,255,255,0.3)' }} onClick={prevStep} disabled={isAutoCapturing} />
             <div className="timer-select-container">
               <i className="pi pi-clock timer-icon" />
-              <select value={selectedTimer} onChange={(event) => setSelectedTimer(Number(event.target.value))} className="timer-select" disabled={isAutoCapturing}>
-                <option value={3}>3 Giây</option>
-                <option value={5}>5 Giây</option>
-                <option value={10}>10 Giây</option>
-              </select>
+              {[3, 5, 10].map((seconds) => (
+                <button
+                  key={seconds}
+                  type="button"
+                  className={`timer-option-btn ${selectedTimer === seconds ? 'active' : ''}`}
+                  onClick={() => setSelectedTimer(seconds)}
+                  disabled={isAutoCapturing}
+                >
+                  {seconds}s
+                </button>
+              ))}
             </div>
             <Button
               label={isAutoCapturing ? 'Đang chụp tự động...' : 'Bắt đầu chụp tự động'}
@@ -566,3 +572,4 @@ export default function CaptureScreen() {
     </>
   )
 }
+

@@ -409,10 +409,11 @@
 .timer-select-container {
   display: flex;
   align-items: center;
-  background: rgba(255, 255, 255, 0.1);
+  gap: 0.35rem;
+  background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.4);
-  border-radius: 8px;
-  padding: 0 1rem;
+  border-radius: 12px;
+  padding: 0.35rem 0.45rem;
   backdrop-filter: blur(10px);
   transition: all 0.3s ease;
 }
@@ -426,34 +427,36 @@
 .timer-icon {
   color: #00ffcc;
   font-size: 1.2rem;
-  margin-right: 0.5rem;
+  margin: 0 0.35rem 0 0.2rem;
 }
 
-.timer-select {
+.timer-option-btn {
+  min-width: 48px;
+  height: 38px;
+  border: 1px solid transparent;
+  border-radius: 8px;
   background: transparent;
   color: #ffffff;
-  border: none;
-  font-size: 1.1rem;
-  font-weight: 700;
-  padding: 0.8rem 0;
-  outline: none;
+  font-size: 1rem;
+  font-weight: 800;
   cursor: pointer;
-  appearance: none; 
-  -webkit-appearance: none;
-  padding-right: 1.5rem;
-  background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23ffffff%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
-  background-repeat: no-repeat;
-  background-position: right center;
-  background-size: 12px auto;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
 }
 
-.timer-select option {
-  background: #0f172a;
-  color: #ffffff;
-  font-weight: 600;
+.timer-option-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.18);
 }
 
-.timer-select:disabled {
+.timer-option-btn.active {
+  background: #00ffcc;
+  border-color: #00ffcc;
+  color: #020617;
+  box-shadow: 0 0 14px rgba(0, 255, 204, 0.38);
+  transform: translateY(-1px);
+}
+
+.timer-option-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
