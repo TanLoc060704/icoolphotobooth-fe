@@ -14,7 +14,7 @@ const SHOT_DELAY_MS = 1500
 const CAPTURE_CONFIGS = {
   'FRAME-4-doc-gau-xanh-ic': { capture: 6, target: 4, width: 4, height: 3 },
   'FRAME-4-doc-da-banh': { capture: 6, target: 4, width: 4, height: 3 },
-  'FRAME-4-doc-da-banh-bai-bien': { capture: 6, target: 4, width: 4, height: 3 },
+  'FRAME-4-doc-da-banh-bai-bien': { capture: 4, target: 4, width: 4, height: 3 },
   default: { capture: 6, target: 4, width: 4, height: 3 },
 }
 
@@ -43,6 +43,7 @@ export default function CaptureScreen() {
   const toastTimeoutRef = useRef(null)
   const isWaitingForCaptureRef = useRef(false)
   const pendingOfficialPhotoSlotsRef = useRef([])
+  const capturedImagesRef = useRef([])
 
   const [connectionStatus, setConnectionStatus] = useState('connecting')
   const [hasLiveView, setHasLiveView] = useState(false)
@@ -94,23 +95,26 @@ export default function CaptureScreen() {
     isWaitingForCaptureRef.current = false
     setIsWaitingForCapture(false)
 
-    setCapturedImages((previous) => [...previous, capturedUrl].slice(-MAX_CAPTURED_IMAGES))
+    const nextIndex = currentShotIndexRef.current + 1
+    const nextImages = [...capturedImagesRef.current, capturedUrl].slice(-MAX_CAPTURED_IMAGES)
+    capturedImagesRef.current = nextImages
+    setCapturedImages(nextImages)
 
     setIsFlashing(true)
     flashTimeoutRef.current = setTimeout(() => setIsFlashing(false), 500)
 
-    const nextIndex = currentShotIndexRef.current + 1
     currentShotIndexRef.current = nextIndex
     setCurrentShotIndex(nextIndex)
 
     if (nextIndex >= totalShots) {
       setIsAutoCapturing(false)
       pickerTimeoutRef.current = setTimeout(() => {
-        setSelectedIndices(Array.from({ length: targetShots }, (_, index) => index))
-        setIsPicking(true)
+        capturedObjectUrlsRef.current.clear()
+        setCapturedPhotos(capturedImagesRef.current)
+        nextStep()
       }, 1000)
     }
-  }, [targetShots, totalShots])
+  }, [nextStep, setCapturedPhotos, totalShots])
 
   const replaceTemporaryPhoto = useCallback((officialUrl) => {
     const pendingSlot = pendingOfficialPhotoSlotsRef.current.shift()
@@ -121,6 +125,7 @@ export default function CaptureScreen() {
 
       const nextImages = [...previous]
       nextImages[pendingSlot.index] = officialUrl
+      capturedImagesRef.current = nextImages
       return nextImages
     })
     setPreviewImage((currentPreview) => (
@@ -243,6 +248,7 @@ export default function CaptureScreen() {
       latestFrameBlobRef.current = null
       hasLiveViewRef.current = false
       pendingOfficialPhotoSlotsRef.current = []
+      capturedImagesRef.current = []
       if (liveFrameUrlRef.current) {
         URL.revokeObjectURL(liveFrameUrlRef.current)
         liveFrameUrlRef.current = null
@@ -256,6 +262,7 @@ export default function CaptureScreen() {
     capturedObjectUrlsRef.current.forEach((url) => URL.revokeObjectURL(url))
     capturedObjectUrlsRef.current.clear()
     pendingOfficialPhotoSlotsRef.current = []
+    capturedImagesRef.current = []
   }, [clearCaptureTimers])
 
   const triggerCapture = useCallback(() => {
@@ -358,6 +365,7 @@ export default function CaptureScreen() {
     pendingOfficialPhotoSlotsRef.current = []
     isWaitingForCaptureRef.current = false
     currentShotIndexRef.current = 0
+    capturedImagesRef.current = []
     setCapturedImages([])
     setSelectedIndices([])
     setCurrentShotIndex(0)
