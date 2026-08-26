@@ -12,11 +12,13 @@ import { HiOutlineSparkles, HiOutlinePhoto, HiOutlineFaceSmile, HiOutlineCake } 
 import { usePhotobooth } from '../../store/PhotoboothContext.jsx'
 import './ProcessingScreen.css'
 
+const CUSTOMIZE_TIMER_SECONDS = 60
+
 // ==========================================
 // CÁC HELPER FUNCTIONS VÀ COMPONENT PHỤ
 // ==========================================
 
-const DraggableSticker = ({ sticker, isSelected, onSelect, onUpdate }) => {
+const DraggableSticker = ({ sticker, isSelected, onSelect, onUpdate, onDelete }) => {
   const shapeRef = useRef(null)
   const trRef = useRef(null)
   const [iconImage] = useImage(sticker.src || '', 'anonymous')
@@ -26,14 +28,14 @@ const DraggableSticker = ({ sticker, isSelected, onSelect, onUpdate }) => {
     if (isSelected) {
       trRef.current.nodes([shapeRef.current])
       trRef.current.rotateEnabled(true)
-      trRef.current.keepRatio(false)
+      trRef.current.keepRatio(true)
       trRef.current.enabledAnchors(['top-left', 'top-right', 'bottom-left', 'bottom-right'])
       trRef.current.getLayer()?.batchDraw()
       return
     }
     trRef.current.nodes([])
     trRef.current.getLayer()?.batchDraw()
-  }, [isSelected])
+  }, [iconImage, isSelected, sticker.height, sticker.width])
 
   const handleTransformEnd = () => {
     const node = shapeRef.current
@@ -59,14 +61,35 @@ const DraggableSticker = ({ sticker, isSelected, onSelect, onUpdate }) => {
           onDragEnd={(e) => { onUpdate?.(sticker.id, { x: e.target.x(), y: e.target.y() }) }}
           onTransformEnd={handleTransformEnd}
         >
+          <Rect x={0} y={0} width={sticker.width || 72} height={sticker.height || 72} fill="rgba(255, 255, 255, 0.001)" />
           {iconImage && (
-            <>
-              <Rect x={0} y={0} width={sticker.width || 72} height={sticker.height || 72} fill="rgba(255, 255, 255, 0.001)" />
               <KonvaImage image={iconImage} x={0} y={0} width={sticker.width || 72} height={sticker.height || 72} listening={false} />
-            </>
+          )}
+          {isSelected && (
+            <Group
+              x={(sticker.width || 72) - 12}
+              y={-12}
+              onMouseDown={(event) => { event.cancelBubble = true }}
+              onTouchStart={(event) => { event.cancelBubble = true }}
+              onClick={(event) => { event.cancelBubble = true; onDelete?.(sticker.id) }}
+              onTap={(event) => { event.cancelBubble = true; onDelete?.(sticker.id) }}
+            >
+              <Rect width={24} height={24} cornerRadius={12} fill="#ff335f" stroke="#ffffff" strokeWidth={2} />
+              <Text text="x" width={24} height={24} align="center" verticalAlign="middle" fill="#ffffff" fontSize={16} fontStyle="bold" listening={false} />
+            </Group>
           )}
         </Group>
-        {isSelected && <Transformer ref={trRef} />}
+        {isSelected && (
+          <Transformer
+            ref={trRef}
+            borderStroke="#00ffcc"
+            borderStrokeWidth={1}
+            anchorFill="#ffffff"
+            anchorStroke="#00ffcc"
+            anchorSize={8}
+            rotateAnchorOffset={18}
+          />
+        )}
       </>
     )
   }
@@ -79,25 +102,61 @@ const DraggableSticker = ({ sticker, isSelected, onSelect, onUpdate }) => {
         onDragEnd={(e) => { onUpdate?.(sticker.id, { x: e.target.x(), y: e.target.y() }) }}
         onTransformEnd={handleTransformEnd}
       />
-      {isSelected && <Transformer ref={trRef} />}
+      {isSelected && (
+        <Transformer
+          ref={trRef}
+          borderStroke="#00ffcc"
+          borderStrokeWidth={1}
+          anchorFill="#ffffff"
+          anchorStroke="#00ffcc"
+          anchorSize={8}
+          rotateAnchorOffset={18}
+        />
+      )}
     </>
   )
 }
 
 const createIconDataUri = (IconComponent, color) => {
-  const svg = renderToStaticMarkup(<IconComponent size={96} strokeWidth={2} color={color} />)
+  const svg = renderToStaticMarkup(<IconComponent size={1024} strokeWidth={2} color={color} />)
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`
 }
 
 const buildIconLibrary = () => {
   const iconSets = [
-    { id: 'heart', name: 'Trái tim', icon: FaHeart, color: '#fb7185' },
-    { id: 'star', name: 'Ngôi sao', icon: FaStar, color: '#facc15' },
-    { id: 'sparkles', name: 'Lấp lánh', icon: HiOutlineSparkles, color: '#00ffcc' },
+    { id: 'heart', name: 'Trai tim', icon: FaHeart, color: '#fb7185' },
+    { id: 'heart-line', name: 'Tim vien', icon: FaRegHeart, color: '#f43f5e' },
+    { id: 'star', name: 'Ngoi sao', icon: FaStar, color: '#facc15' },
+    { id: 'star-line', name: 'Sao vien', icon: FaRegStar, color: '#fde047' },
+    { id: 'camera', name: 'May anh', icon: FaCamera, color: '#38bdf8' },
+    { id: 'retro-camera', name: 'Camera', icon: FaCameraRetro, color: '#60a5fa' },
+    { id: 'crown', name: 'Vuong mien', icon: FaCrown, color: '#facc15' },
+    { id: 'gift', name: 'Qua', icon: FaGift, color: '#fb7185' },
+    { id: 'music', name: 'Am nhac', icon: FaMusic, color: '#a78bfa' },
+    { id: 'fire', name: 'Noi bat', icon: FaFire, color: '#fb923c' },
+    { id: 'leaf', name: 'La', icon: FaLeaf, color: '#22c55e' },
+    { id: 'sun', name: 'Mat troi', icon: FaSun, color: '#fbbf24' },
+    { id: 'rocket', name: 'Ten lua', icon: FaRocket, color: '#f97316' },
+    { id: 'smile', name: 'Mat cuoi', icon: FaSmileBeam, color: '#facc15' },
+    { id: 'party', name: 'Party', icon: FaGlassCheers, color: '#c084fc' },
+    { id: 'gem', name: 'Kim cuong', icon: FaGem, color: '#22d3ee' },
+    { id: 'bolt', name: 'Tia chop', icon: FaBolt, color: '#fde047' },
+    { id: 'palette', name: 'Mau sac', icon: FaPalette, color: '#34d399' },
+    { id: 'film', name: 'Film', icon: FaFilm, color: '#94a3b8' },
+    { id: 'paper-plane', name: 'Bay', icon: FaPaperPlane, color: '#38bdf8' },
+    { id: 'thumbs-up', name: 'Like', icon: FaThumbsUp, color: '#60a5fa' },
+    { id: 'kiss', name: 'Cute', icon: FaKissWinkHeart, color: '#fb7185' },
+    { id: 'rainbow', name: 'Cau vong', icon: FaRainbow, color: '#f472b6' },
+    { id: 'feather', name: 'Long vu', icon: FaFeather, color: '#e2e8f0' },
+    { id: 'paw', name: 'Dau chan', icon: FaPaw, color: '#f59e0b' },
+    { id: 'trophy', name: 'Cup', icon: FaTrophy, color: '#facc15' },
+    { id: 'birthday', name: 'Sinh nhat', icon: FaBirthdayCake, color: '#f9a8d4' },
+    { id: 'coffee', name: 'Cafe', icon: FaCoffee, color: '#d97706' },
+    { id: 'cat', name: 'Meo', icon: FaCat, color: '#f97316' },
+    { id: 'dog', name: 'Cun', icon: FaDog, color: '#a16207' },
   ]
   return iconSets.map((item) => ({ ...item, src: createIconDataUri(item.icon, item.color) }))
 }
-
 const getCoverCrop = (image, width, height) => {
   const imageRatio = image.width / image.height
   const targetRatio = width / height
@@ -128,8 +187,9 @@ const getCanvasSafeImageUrl = (src) => {
   return src
 }
 
-const PhotoSlot = ({ src, x, y, width, height, index, radius = 0, adjustment, onSelect, onZoom }) => {
+const PhotoSlot = ({ src, x, y, width, height, index, radius = 0, adjustment, onSelect, onZoom, onPan }) => {
   const [image] = useImage(getCanvasSafeImageUrl(src) || '', 'anonymous')
+  const dragStartRef = useRef(null)
 
   if (!src) {
     return (
@@ -163,8 +223,39 @@ const PhotoSlot = ({ src, x, y, width, height, index, radius = 0, adjustment, on
       scaleX={-1}
       crop={{ x: cropX, y: cropY, width: cropWidth, height: cropHeight }}
       cornerRadius={radius}
+      draggable
+      dragDistance={3}
       onClick={(event) => { event.cancelBubble = true; onSelect(index) }}
       onTap={(event) => { event.cancelBubble = true; onSelect(index) }}
+      onDragStart={(event) => {
+        event.cancelBubble = true
+        onSelect(index)
+        dragStartRef.current = {
+          nodeX: event.target.x(),
+          nodeY: event.target.y(),
+          panX: adjustment?.panX || 0,
+          panY: adjustment?.panY || 0,
+        }
+      }}
+      onDragMove={(event) => {
+        const start = dragStartRef.current
+        if (!start) return
+
+        event.cancelBubble = true
+        const dx = event.target.x() - start.nodeX
+        const dy = event.target.y() - start.nodeY
+        onPan(index, {
+          panX: start.panX + (dx / width) * 1.5,
+          panY: start.panY - (dy / height) * 1.5,
+        })
+        event.target.position({ x: start.nodeX, y: start.nodeY })
+      }}
+      onDragEnd={(event) => {
+        event.cancelBubble = true
+        const start = dragStartRef.current
+        if (start) event.target.position({ x: start.nodeX, y: start.nodeY })
+        dragStartRef.current = null
+      }}
       onWheel={(event) => {
         event.evt.preventDefault()
         event.cancelBubble = true
@@ -181,15 +272,15 @@ const PhotoSlot = ({ src, x, y, width, height, index, radius = 0, adjustment, on
 const FRAME_CONFIGS = {
   'FRAME-4-doc-gau-xanh-ic': {
     previewUrl: '/frames/FRAME-4-doc-gau-xanh-ic.png',
-    paddingTop: 17, paddingBottom: 37, paddingSide: 15, gap: 10, radius: 0, poses: 4
+    paddingTop: 17, paddingBottom: 37, paddingSide: 15, gap: 9, radius: 0, poses: 4
   },
   'FRAME-4-doc-da-banh': {
     previewUrl: '/frames/FRAME-4-doc-da-banh.png',
-    paddingTop: 34, paddingBottom: 20, paddingSide: 18, gap: 12, radius: 0, poses: 4
+    paddingTop: 28, paddingBottom: 22, paddingSide: 11, gap: 6, radius: 0, poses: 4
   },
   'FRAME-4-doc-da-banh-bai-bien': {
     previewUrl: '/frames/FRAME-4-doc-da-banh-bai-bien.png',
-    paddingTop: 31, paddingBottom: 55, paddingSide: 20, gap: 15, radius: 0, poses: 4
+    paddingTop: 28, paddingBottom: 40, paddingSide: 37, gap: 6, radius: 0, poses: 4
   },
   'default': {
     previewUrl: '',
@@ -225,6 +316,10 @@ export default function ProcessingScreen() {
   const canvasWidth = 218 
   const canvasHeight = 600
 
+  const [viewportSize, setViewportSize] = useState(() => ({
+    width: window.innerWidth,
+    height: window.innerHeight,
+  }))
   const [activeTab, setActiveTab] = useState('photos')
   const [stickers, setStickers] = useState([])
   const [selectedStickerId, setSelectedStickerId] = useState(null)
@@ -235,15 +330,35 @@ export default function ProcessingScreen() {
   const [dragPreview, setDragPreview] = useState(null)
   const [selectedSlotIndex, setSelectedSlotIndex] = useState(null)
   const [photoAdjustments, setPhotoAdjustments] = useState({})
+  const [remainingCustomizeSeconds, setRemainingCustomizeSeconds] = useState(CUSTOMIZE_TIMER_SECONDS)
 
   const stageRef = useRef(null)
   const canvasBoxRef = useRef(null)
   const dragPreviewRef = useRef(null)
   const slotHighlightRef = useRef(null)
   const draggedPhotoIndexRef = useRef(null)
+  const canvasRectRef = useRef(null)
   const dragAnimationFrameRef = useRef(null)
   const pendingPointerPositionRef = useRef(null)
   const suppressNextPhotoClickRef = useRef(false)
+  const layoutSlotsRef = useRef([])
+  const canvasScaleRef = useRef(1)
+  const allCapturedPhotosRef = useRef([])
+  const placePhotoInSlotRef = useRef(null)
+  const finishCustomizingRef = useRef(null)
+  const canFinishCustomizingRef = useRef(false)
+
+  useEffect(() => {
+    const handleResize = () => {
+      setViewportSize({
+        width: window.innerWidth,
+        height: window.innerHeight,
+      })
+    }
+
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
 
   // -----------------------------------------------------
   // LOGIC TRUY XUẤT ĐÚNG FRAME VÀ CONFIG CHỐNG CRASH
@@ -253,16 +368,38 @@ export default function ProcessingScreen() {
   const availableIcons = buildIconLibrary()
   const photosList = selectedPhotoIndices
     .map((index) => allCapturedPhotos[index])
+  const maxCanvasHeight = Math.min(viewportSize.height - 150, 860)
+  const maxCanvasWidth = Math.max(260, viewportSize.width - 500)
+  const canvasScale = Math.max(1, Math.min(maxCanvasHeight / canvasHeight, maxCanvasWidth / canvasWidth))
+  const displayCanvasWidth = Math.round(canvasWidth * canvasScale)
+  const displayCanvasHeight = Math.round(canvasHeight * canvasScale)
+
+  useEffect(() => {
+    layoutSlotsRef.current = layoutSlots
+    canvasScaleRef.current = canvasScale
+    allCapturedPhotosRef.current = allCapturedPhotos
+  }, [allCapturedPhotos, canvasScale, layoutSlots])
 
   // Load trực tiếp URL ảnh từ Config
   const [frameImg] = useImage(activeFrameConfig.previewUrl || '', 'anonymous')
 
   const availableFilters = [
-    { id: 'none', name: 'Ảnh Gốc', style: 'none' },
-    { id: 'grayscale', name: 'Đen Trắng', style: 'grayscale(100%)' },
-    { id: 'sepia', name: 'Vintage', style: 'sepia(80%)' },
+    { id: 'none', name: 'Anh goc', style: 'none' },
+    { id: 'bright', name: 'Sang hon', style: 'brightness(112%) contrast(104%)' },
+    { id: 'soft', name: 'Mem mai', style: 'brightness(106%) contrast(92%) saturate(112%)' },
+    { id: 'vivid', name: 'Ruc ro', style: 'contrast(112%) saturate(145%)' },
+    { id: 'fresh', name: 'Tuoi sang', style: 'brightness(108%) saturate(125%) hue-rotate(-4deg)' },
+    { id: 'warm', name: 'Am ap', style: 'sepia(18%) saturate(122%) brightness(104%) hue-rotate(-8deg)' },
+    { id: 'cool', name: 'Mat lanh', style: 'saturate(112%) hue-rotate(12deg) brightness(102%)' },
+    { id: 'pink', name: 'Hong cute', style: 'sepia(8%) saturate(132%) hue-rotate(-18deg) brightness(105%)' },
+    { id: 'cinema', name: 'Cinema', style: 'contrast(118%) saturate(88%) brightness(96%)' },
+    { id: 'retro', name: 'Retro', style: 'sepia(45%) contrast(106%) saturate(92%) brightness(102%)' },
+    { id: 'vintage', name: 'Vintage', style: 'sepia(80%) contrast(95%) brightness(98%)' },
+    { id: 'noir', name: 'Noir', style: 'grayscale(100%) contrast(126%) brightness(92%)' },
+    { id: 'grayscale', name: 'Den trang', style: 'grayscale(100%)' },
+    { id: 'fade', name: 'Film fade', style: 'contrast(88%) brightness(108%) saturate(82%) sepia(12%)' },
+    { id: 'dream', name: 'Mo mang', style: 'brightness(112%) contrast(86%) saturate(118%) blur(0.25px)' },
   ]
-
   const handleAddIcon = (icon) => {
     const newSticker = {
       id: Date.now().toString(), kind: 'icon', src: icon.src, name: icon.name,
@@ -274,6 +411,12 @@ export default function ProcessingScreen() {
 
   const handleUpdateSticker = (stickerId, updates) => {
     setStickers((prev) => prev.map((sticker) => (sticker.id === stickerId ? { ...sticker, ...updates } : sticker)))
+  }
+
+  const handleDeleteSticker = (stickerId) => {
+    if (!stickerId) return
+    setStickers((previous) => previous.filter((sticker) => sticker.id !== stickerId))
+    setSelectedStickerId(null)
   }
 
   const handleTogglePhoto = (photoIndex) => {
@@ -299,14 +442,11 @@ export default function ProcessingScreen() {
     }))
   }
 
-  const handlePhotoMove = (direction) => {
-    if (!Number.isInteger(selectedSlotIndex)) return
-
-    const step = 0.08
-    updatePhotoAdjustment(selectedSlotIndex, (current) => ({
+  const handlePhotoPan = (slotIndex, nextPan) => {
+    updatePhotoAdjustment(slotIndex, (current) => ({
       ...current,
-      panX: Math.min(1, Math.max(-1, current.panX + (direction === 'left' ? -1 : direction === 'right' ? 1 : 0) * step)),
-      panY: Math.min(1, Math.max(-1, current.panY + (direction === 'up' ? 1 : direction === 'down' ? -1 : 0) * step)),
+      panX: Math.min(1, Math.max(-1, nextPan.panX)),
+      panY: Math.min(1, Math.max(-1, nextPan.panY)),
     }))
   }
 
@@ -324,14 +464,18 @@ export default function ProcessingScreen() {
     })
   }
 
+  useEffect(() => {
+    placePhotoInSlotRef.current = placePhotoInSlot
+  }, [placePhotoInSlot])
+
   const getSlotIndexFromClientPoint = (clientX, clientY) => {
-    const canvasRect = canvasBoxRef.current?.getBoundingClientRect()
+    const canvasRect = canvasRectRef.current || canvasBoxRef.current?.getBoundingClientRect()
     if (!canvasRect) return -1
 
     const dropX = ((clientX - canvasRect.left) / canvasRect.width) * canvasWidth
     const dropY = ((clientY - canvasRect.top) / canvasRect.height) * canvasHeight
 
-    return layoutSlots.findIndex((slot) => (
+    return layoutSlotsRef.current.findIndex((slot) => (
       dropX >= slot.x
       && dropX <= slot.x + slot.width
       && dropY >= slot.y
@@ -341,9 +485,11 @@ export default function ProcessingScreen() {
 
   const handlePhotoPointerDown = (event, photoIndex) => {
     event.preventDefault()
+    event.currentTarget.setPointerCapture?.(event.pointerId)
+    canvasRectRef.current = canvasBoxRef.current?.getBoundingClientRect() || null
     draggedPhotoIndexRef.current = photoIndex
     setDragPreview({
-      src: allCapturedPhotos[photoIndex],
+      src: allCapturedPhotosRef.current[photoIndex],
       x: event.clientX,
       y: event.clientY,
     })
@@ -360,14 +506,15 @@ export default function ProcessingScreen() {
       }
 
       const slotIndex = getSlotIndexFromClientPoint(position.x, position.y)
-      const slot = layoutSlots[slotIndex]
+      const slot = layoutSlotsRef.current[slotIndex]
       const highlight = slotHighlightRef.current
+      const currentCanvasScale = canvasScaleRef.current
 
       if (highlight && slot) {
         highlight.style.display = 'block'
-        highlight.style.transform = `translate3d(${slot.x}px, ${slot.y}px, 0)`
-        highlight.style.width = `${slot.width}px`
-        highlight.style.height = `${slot.height}px`
+        highlight.style.transform = `translate3d(${slot.x * currentCanvasScale}px, ${slot.y * currentCanvasScale}px, 0)`
+        highlight.style.width = `${slot.width * currentCanvasScale}px`
+        highlight.style.height = `${slot.height * currentCanvasScale}px`
       } else if (highlight) {
         highlight.style.display = 'none'
       }
@@ -385,6 +532,7 @@ export default function ProcessingScreen() {
     const handlePointerUp = (event) => {
       const photoIndex = draggedPhotoIndexRef.current
       draggedPhotoIndexRef.current = null
+      canvasRectRef.current = null
       setDragPreview(null)
       if (slotHighlightRef.current) slotHighlightRef.current.style.display = 'none'
 
@@ -393,12 +541,13 @@ export default function ProcessingScreen() {
       const slotIndex = getSlotIndexFromClientPoint(event.clientX, event.clientY)
       if (slotIndex !== -1) {
         suppressNextPhotoClickRef.current = true
-        placePhotoInSlot(photoIndex, slotIndex)
+        placePhotoInSlotRef.current?.(photoIndex, slotIndex)
       }
     }
 
     const cancelPointerDrag = () => {
       draggedPhotoIndexRef.current = null
+      canvasRectRef.current = null
       setDragPreview(null)
       if (slotHighlightRef.current) slotHighlightRef.current.style.display = 'none'
     }
@@ -416,7 +565,7 @@ export default function ProcessingScreen() {
       window.removeEventListener('pointerup', handlePointerUp)
       window.removeEventListener('pointercancel', cancelPointerDrag)
     }
-  })
+  }, [])
 
   const handlePhotoClick = (photoIndex) => {
     if (suppressNextPhotoClickRef.current) {
@@ -427,10 +576,22 @@ export default function ProcessingScreen() {
     handleTogglePhoto(photoIndex)
   }
 
-  const handleStagePointerDown = (e) => {
-    if (e.target === e.target.getStage()) {
-      setSelectedStickerId(null)
-      setSelectedSlotIndex(null)
+  const clearCanvasSelection = () => {
+    setSelectedStickerId(null)
+    setSelectedSlotIndex(null)
+  }
+
+  const handleScreenPointerDown = (event) => {
+    if (event.target === event.currentTarget) clearCanvasSelection()
+  }
+
+  const handleStagePointerDown = (event) => {
+    const target = event.target
+    const isEmptyStage = target === target.getStage()
+    const isBackground = target?.attrs?.name === 'canvas-background'
+
+    if (isEmptyStage || isBackground) {
+      clearCanvasSelection()
     }
   }
 
@@ -441,7 +602,7 @@ export default function ProcessingScreen() {
       setSelectedStickerId(null)
       setSelectedSlotIndex(null)
       setTimeout(() => {
-        const dataURL = stageRef.current.toDataURL({ pixelRatio: 2 })
+        const dataURL = stageRef.current.toDataURL({ pixelRatio: 4.5 / canvasScale })
         if (typeof setCapturedPhotos === 'function') setCapturedPhotos([dataURL])
         nextStep()
       }, 100)
@@ -450,7 +611,33 @@ export default function ProcessingScreen() {
     }
   }
 
+  useEffect(() => {
+    finishCustomizingRef.current = handleFinishCustomizing
+    canFinishCustomizingRef.current = targetShots > 0 && selectedPhotoIndices.length === targetShots
+  })
+
+  useEffect(() => {
+    if (currentStep !== 4) return undefined
+
+    setRemainingCustomizeSeconds(CUSTOMIZE_TIMER_SECONDS)
+    const timerId = window.setInterval(() => {
+      setRemainingCustomizeSeconds((previous) => {
+        if (previous <= 1) {
+          window.clearInterval(timerId)
+          if (canFinishCustomizingRef.current) finishCustomizingRef.current?.()
+          return 0
+        }
+
+        return previous - 1
+      })
+    }, 1000)
+
+    return () => window.clearInterval(timerId)
+  }, [currentStep])
+
   if (currentStep !== 4) return null;
+
+  const progressPercent = (remainingCustomizeSeconds / CUSTOMIZE_TIMER_SECONDS) * 100
 
   const getActiveFilterStyle = () => {
     const found = availableFilters.find(f => f.id === activeFilter)
@@ -458,21 +645,37 @@ export default function ProcessingScreen() {
   }
 
   return (
-    <section className="processing-screen-container">
+    <section className="processing-screen-container" onPointerDown={handleScreenPointerDown}>
       <div className="processing-header">
-        <div className="processing-step-tag">Bước 04 / 07</div>
+        {/* <div className="processing-step-tag">Bước 04 / 07</div> */}
         <h2 className="processing-title">TRANG TRÍ VÀ THÊM STICKER</h2>
+        <div className="countdown-container">
+          <div className="countdown-text">
+            Thoi gian chinh sua: <span>{remainingCustomizeSeconds} giay</span>
+          </div>
+          <div className="countdown-bar-bg">
+            <div className="countdown-bar-fill" style={{ width: `${progressPercent}%` }} />
+          </div>
+        </div>
       </div>
 
-      <div className="processing-content-wrapper">
+      <div className="processing-content-wrapper" onPointerDown={handleScreenPointerDown}>
         <div
           ref={canvasBoxRef}
           className="canvas-preview-box"
-          style={{ filter: getActiveFilterStyle(), width: canvasWidth, height: canvasHeight, overflow: 'hidden' }}
+          style={{ filter: getActiveFilterStyle(), width: displayCanvasWidth, height: displayCanvasHeight, overflow: 'hidden' }}
         >
-          <Stage width={canvasWidth} height={canvasHeight} ref={stageRef} onMouseDown={handleStagePointerDown} onTouchStart={handleStagePointerDown}>
+          <Stage
+            width={displayCanvasWidth}
+            height={displayCanvasHeight}
+            scaleX={canvasScale}
+            scaleY={canvasScale}
+            ref={stageRef}
+            onMouseDown={handleStagePointerDown}
+            onTouchStart={handleStagePointerDown}
+          >
             <Layer>
-              <Rect x={0} y={0} width={canvasWidth} height={canvasHeight} fill="#ffffff" />
+              <Rect name="canvas-background" x={0} y={0} width={canvasWidth} height={canvasHeight} fill="#ffffff" />
               
               {layoutSlots.map((slot, index) => (
                 <PhotoSlot 
@@ -487,15 +690,13 @@ export default function ProcessingScreen() {
                   adjustment={photoAdjustments[index]}
                   onSelect={setSelectedSlotIndex}
                   onZoom={handlePhotoZoom}
+                  onPan={handlePhotoPan}
                 />
               ))}
               
               {photosList.length === 0 && <Text text="Đang tải ảnh chụp..." x={canvasWidth / 2 - 70} y={canvasHeight / 2} fill="#000000" fontSize={16} />}
               
-              {stickers.map((st) => (
-                <DraggableSticker key={st.id} sticker={st} isSelected={st.id === selectedStickerId} onUpdate={handleUpdateSticker} onSelect={(e) => { e.cancelBubble = true; setSelectedStickerId(st.id) }} />
-              ))}
-              
+
               {/* Ảnh Frame tự động ép vào khung mà không cần bấm chọn */}
               {frameImg && <KonvaImage image={frameImg} width={canvasWidth} height={canvasHeight} listening={false} />}
               {Number.isInteger(selectedSlotIndex) && layoutSlots[selectedSlotIndex] && (
@@ -508,6 +709,10 @@ export default function ProcessingScreen() {
                   listening={false}
                 />
               )}
+
+              {stickers.map((st) => (
+                <DraggableSticker key={st.id} sticker={st} isSelected={st.id === selectedStickerId} onUpdate={handleUpdateSticker} onDelete={handleDeleteSticker} onSelect={(e) => { e.cancelBubble = true; setSelectedStickerId(st.id) }} />
+              ))}
             </Layer>
           </Stage>
           <div ref={slotHighlightRef} className="processing-slot-drop-highlight" />
@@ -528,24 +733,6 @@ export default function ProcessingScreen() {
                   Đã chọn <strong>{selectedPhotoIndices.length}</strong> / {targetShots} ảnh
                 </div>
 
-                {Number.isInteger(selectedSlotIndex) && (
-                  <div className="processing-photo-edit-controls">
-                    <div className="processing-photo-control-title">Chỉnh ảnh ô {selectedSlotIndex + 1}</div>
-                    <div className="processing-photo-zoom-controls">
-                      <Button icon="pi pi-search-minus" aria-label="Thu nhỏ ảnh" title="Thu nhỏ ảnh" onClick={() => handlePhotoZoom(selectedSlotIndex, -0.1)} />
-                      <span>{Math.round((photoAdjustments[selectedSlotIndex]?.zoom || 1) * 100)}%</span>
-                      <Button icon="pi pi-search-plus" aria-label="Phóng to ảnh" title="Phóng to ảnh" onClick={() => handlePhotoZoom(selectedSlotIndex, 0.1)} />
-                    </div>
-                    <div className="processing-photo-direction-controls">
-                      <Button className="move-up" icon="pi pi-arrow-up" aria-label="Di chuyển lên" title="Di chuyển lên" onClick={() => handlePhotoMove('up')} />
-                      <Button className="move-left" icon="pi pi-arrow-left" aria-label="Di chuyển trái" title="Di chuyển trái" onClick={() => handlePhotoMove('left')} />
-                      <Button className="move-reset" icon="pi pi-refresh" aria-label="Đặt lại ảnh" title="Đặt lại ảnh" onClick={() => updatePhotoAdjustment(selectedSlotIndex, { zoom: 1, panX: 0, panY: 0 })} />
-                      <Button className="move-right" icon="pi pi-arrow-right" aria-label="Di chuyển phải" title="Di chuyển phải" onClick={() => handlePhotoMove('right')} />
-                      <Button className="move-down" icon="pi pi-arrow-down" aria-label="Di chuyển xuống" title="Di chuyển xuống" onClick={() => handlePhotoMove('down')} />
-                    </div>
-                  </div>
-                )}
-
                 <div className="processing-photo-grid">
                   {allCapturedPhotos.map((photoUrl, index) => {
                     const isSelected = selectedPhotoIndices.includes(index)
@@ -565,19 +752,19 @@ export default function ProcessingScreen() {
                     )
                   })}
                 </div>
-
-                <Button label="Chụp lại" icon="pi pi-refresh" severity="secondary" outlined onClick={prevStep} />
               </div>
             )}
 
             {activeTab === 'icon' && (
-              <div className="grid-options-container">
-                {availableIcons.map((item) => (
-                  <div key={item.id} className="option-item-card" onClick={() => handleAddIcon(item)}>
-                    <img src={item.src} alt={item.name} style={{ width: '28px', height: '28px' }} />
-                    <span>{item.name}</span>
-                  </div>
-                ))}
+              <div className="processing-sticker-panel">
+                <div className="grid-options-container">
+                  {availableIcons.map((item) => (
+                    <div key={item.id} className="option-item-card" onClick={() => handleAddIcon(item)}>
+                      <img src={item.src} alt={item.name} style={{ width: '28px', height: '28px' }} />
+                      <span>{item.name}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
             
@@ -611,3 +798,9 @@ export default function ProcessingScreen() {
     </section>
   )
 }
+
+
+
+
+
+

@@ -10,11 +10,20 @@ const PHOTO_URL_PREFIX = 'PHOTO_URL:'
 const CAPTURE_RESPONSE_TIMEOUT_MS = 30000
 const MAX_CAPTURED_IMAGES = 6
 const SHOT_DELAY_MS = 1500
+const USE_MOCK_CAPTURE_PHOTOS = false
+const MOCK_CAPTURE_PHOTOS = [
+  'http://cam-dd.synology.me:8080/media/596cfc1e-fa5a-401a-bcb2-a3ebed546699.JPG',
+  'http://cam-dd.synology.me:8080/media/116bfc79-0657-4938-ad63-e8d4c5d7515b.JPG',
+  'http://cam-dd.synology.me:8080/media/d106bb96-7b70-47bd-986e-eeec80915952.JPG',
+  'http://cam-dd.synology.me:8080/media/c75546c6-d05c-404c-b5f2-da4fab78d01e.JPG',
+  'http://cam-dd.synology.me:8080/media/97b63b07-735f-4b69-9b67-792b5a487f9f.JPG',
+  'http://cam-dd.synology.me:8080/media/72767cfa-c17c-4669-9ed9-f261ab3406f7.JPG',
+]
 
 const CAPTURE_CONFIGS = {
   'FRAME-4-doc-gau-xanh-ic': { capture: 6, target: 4, width: 4, height: 3 },
   'FRAME-4-doc-da-banh': { capture: 6, target: 4, width: 4, height: 3 },
-  'FRAME-4-doc-da-banh-bai-bien': { capture: 4, target: 4, width: 4, height: 3 },
+  'FRAME-4-doc-da-banh-bai-bien': { capture: 6, target: 4, width: 4, height: 3 },
   default: { capture: 6, target: 4, width: 4, height: 3 },
 }
 
@@ -44,6 +53,7 @@ export default function CaptureScreen() {
   const isWaitingForCaptureRef = useRef(false)
   const pendingOfficialPhotoSlotsRef = useRef([])
   const capturedImagesRef = useRef([])
+  const hasLoadedMockPhotosRef = useRef(false)
 
   const [connectionStatus, setConnectionStatus] = useState('connecting')
   const [hasLiveView, setHasLiveView] = useState(false)
@@ -173,7 +183,21 @@ export default function CaptureScreen() {
   }, [completeCapture, replaceTemporaryPhoto, showToast])
 
   useEffect(() => {
-    if (currentStep !== 3) return undefined
+    if (!USE_MOCK_CAPTURE_PHOTOS || currentStep !== 3) {
+      hasLoadedMockPhotosRef.current = false
+      return
+    }
+    if (hasLoadedMockPhotosRef.current) return
+
+    hasLoadedMockPhotosRef.current = true
+    capturedImagesRef.current = MOCK_CAPTURE_PHOTOS
+    setCapturedImages(MOCK_CAPTURE_PHOTOS)
+    setCapturedPhotos(MOCK_CAPTURE_PHOTOS)
+    nextStep()
+  }, [currentStep, nextStep, setCapturedPhotos])
+
+  useEffect(() => {
+    if (currentStep !== 3 || USE_MOCK_CAPTURE_PHOTOS) return undefined
 
     const socket = new WebSocket(CAMERA_SOCKET_URL)
     socket.binaryType = 'arraybuffer'

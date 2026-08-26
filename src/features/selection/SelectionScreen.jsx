@@ -16,7 +16,7 @@ export const FRAME_DATA = {
   'FRAME-4-doc-da-banh': {
     name: 'EURO Xanh',
     poses: 4,
-    aspectRatio: '356 x 108',
+    aspectRatio: '400 x 150',
     previewUrl: '/frames/FRAME-4-doc-da-banh.png',
   },
   'FRAME-4-doc-da-banh-bai-bien': {
