@@ -154,3 +154,10 @@
   animation: pulse-galaxy-smooth 2.5s ease-in-out infinite !important;
   margin-top: 1rem !important;
 }
+
+.idle-start-error {
+  color: #fecaca;
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0.75rem 0 0;
+}

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Button } from 'primereact/button'
 import { usePhotobooth } from '../../store/PhotoboothContext.jsx'
+import { stopCameraApp } from '../../services/cameraAppControl.js'
 import './DeliveryScreen.css'
 
 const THANK_YOU_TIMEOUT_SECONDS = 60
@@ -12,6 +13,9 @@ export default function DeliveryScreen() {
   useEffect(() => {
     if (currentStep !== 6) return undefined
 
+    stopCameraApp().catch((error) => {
+      console.error('Could not stop camera app:', error)
+    })
     setTimeLeft(THANK_YOU_TIMEOUT_SECONDS)
     const timerId = window.setInterval(() => {
       setTimeLeft((value) => Math.max(0, value - 1))

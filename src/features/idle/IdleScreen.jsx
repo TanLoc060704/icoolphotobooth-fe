@@ -1,16 +1,35 @@
+import { useState } from 'react'
 import { Button } from 'primereact/button'
 import { usePhotobooth } from '../../store/PhotoboothContext.jsx'
+import { startCameraApp } from '../../services/cameraAppControl.js'
 import './IdleScreen.css'
 
 export default function IdleScreen() {
   const { currentStep, nextStep } = usePhotobooth()
+  const [isStarting, setIsStarting] = useState(false)
+  const [startError, setStartError] = useState(null)
+
+  const handleStart = async () => {
+    if (isStarting) return
+
+    setIsStarting(true)
+    setStartError(null)
+    try {
+      await startCameraApp()
+      nextStep()
+    } catch (error) {
+      setStartError(error instanceof Error ? error.message : 'Khong the mo ung dung may anh.')
+    } finally {
+      setIsStarting(false)
+    }
+  }
 
   if (currentStep !== 1) {
     return null
   }
 
   return (
-    <section className="kiosk-idle-container" onClick={nextStep}>
+    <section className="kiosk-idle-container" onClick={handleStart}>
       
       {/* Tinh vân Galaxy */}
       <div className="nebula-top-left"></div>
@@ -50,12 +69,15 @@ export default function IdleScreen() {
         </p>
       </div>
 
+      {startError && <p className="idle-start-error">{startError}</p>}
+
       <Button 
-        label="CHẠM ĐỂ BẮT ĐẦU" 
-        icon="pi pi-sparkles" 
+        label={isStarting ? 'ĐANG MỞ MÁY ẢNH...' : 'CHẠM ĐỂ BẮT ĐẦU'} 
+        icon={isStarting ? 'pi pi-spin pi-spinner' : 'pi pi-sparkles'} 
         size="large" 
         rounded
         className="idle-start-btn" 
+        disabled={isStarting}
       />
       
     </section>
