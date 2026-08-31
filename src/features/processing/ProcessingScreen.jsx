@@ -589,18 +589,17 @@ export default function ProcessingScreen() {
         try {
           // Stage đang được thu nhỏ để vừa màn hình. Xuất ngược theo canvasScale
           // để ảnh trở về độ phân giải gốc của frame, nhưng giới hạn cạnh dài
-          // ở 4096px để file JPEG không quá lớn làm NAS reset kết nối.
+          // ở 4096px để file PNG không quá lớn làm NAS reset kết nối.
           const previewLongEdge = Math.max(displayCanvasWidth, displayCanvasHeight)
           const nativePixelRatio = 1 / Math.max(canvasScale, 0.01)
           const safePixelRatio = 4096 / Math.max(previewLongEdge, 1)
           const exportPixelRatio = Math.max(1, Math.min(nativePixelRatio, safePixelRatio))
           const dataURL = stageRef.current.toDataURL({
-            mimeType: 'image/jpeg',
-            quality: 0.96,
+            mimeType: 'image/png',
             pixelRatio: exportPixelRatio,
           })
           const blob = await (await fetch(dataURL)).blob()
-          const uploaded = await uploadPhoto(new File([blob], `final-${session.qrCodeToken}.jpg`, { type: 'image/jpeg' }))
+          const uploaded = await uploadPhoto(new File([blob], `final-${session.qrCodeToken}.png`, { type: 'image/png' }))
           await finalizeSession(session.qrCodeToken, uploaded.url)
           setFinalImage(uploaded.url)
           nextStep()
@@ -679,8 +678,6 @@ export default function ProcessingScreen() {
             onTouchStart={handleStagePointerDown}
           >
             <Layer>
-              <Rect name="canvas-background" x={0} y={0} width={canvasWidth} height={canvasHeight} fill="#ffffff" />
-              
               {layoutSlots.map((slot, index) => (
                 <PhotoSlot 
                   key={`${index}-${selectedFrame?.id || 'frame'}`} 
