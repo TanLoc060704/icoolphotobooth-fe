@@ -10,6 +10,7 @@ import { BsEmojiSunglasses, BsEmojiSmile, BsBalloonFill, BsPatchCheckFill, BsCam
 import { TbMoodSmile, TbMoodSmileBeam, TbMoodCrazyHappy, TbBalloon, TbHeartHandshake, TbStars, TbSparkles, TbPhoto, TbCameraHeart, TbCandy, TbFlower } from 'react-icons/tb'
 import { HiOutlineSparkles, HiOutlinePhoto, HiOutlineFaceSmile, HiOutlineCake } from 'react-icons/hi2'
 import { usePhotobooth } from '../../store/PhotoboothContext.jsx'
+import { finalizeSession, uploadPhoto } from '../../services/sessionApi.js'
 import './ProcessingScreen.css'
 
 const CUSTOMIZE_TIMER_SECONDS = 60
@@ -187,7 +188,7 @@ const getCanvasSafeImageUrl = (src) => {
   return src
 }
 
-const PhotoSlot = ({ src, x, y, width, height, index, radius = 0, adjustment, onSelect, onZoom, onPan }) => {
+const PhotoSlot = ({ src, x, y, width, height, rotation = 0, index, radius = 0, adjustment, onSelect, onZoom, onPan }) => {
   const [image] = useImage(getCanvasSafeImageUrl(src) || '', 'anonymous')
   const dragStartRef = useRef(null)
 
@@ -214,15 +215,13 @@ const PhotoSlot = ({ src, x, y, width, height, index, radius = 0, adjustment, on
   const cropY = availablePanY * (0.5 + (adjustment?.panY || 0) / 2)
 
   return (
-    <KonvaImage
-      image={image}
-      x={x + width}
+    <Group
+      x={x}
       y={y}
-      width={width}
-      height={height}
-      scaleX={-1}
-      crop={{ x: cropX, y: cropY, width: cropWidth, height: cropHeight }}
-      cornerRadius={radius}
+      rotation={rotation}
+      clipFunc={(ctx) => {
+        ctx.rect(0, 0, width, height)
+      }}
       draggable
       dragDistance={3}
       onClick={(event) => { event.cancelBubble = true; onSelect(index) }}
@@ -231,8 +230,8 @@ const PhotoSlot = ({ src, x, y, width, height, index, radius = 0, adjustment, on
         event.cancelBubble = true
         onSelect(index)
         dragStartRef.current = {
-          nodeX: event.target.x(),
-          nodeY: event.target.y(),
+          nodeX: event.currentTarget.x(),
+          nodeY: event.currentTarget.y(),
           panX: adjustment?.panX || 0,
           panY: adjustment?.panY || 0,
         }
@@ -242,18 +241,18 @@ const PhotoSlot = ({ src, x, y, width, height, index, radius = 0, adjustment, on
         if (!start) return
 
         event.cancelBubble = true
-        const dx = event.target.x() - start.nodeX
-        const dy = event.target.y() - start.nodeY
+        const dx = event.currentTarget.x() - start.nodeX
+        const dy = event.currentTarget.y() - start.nodeY
         onPan(index, {
           panX: start.panX + (dx / width) * 1.5,
           panY: start.panY - (dy / height) * 1.5,
         })
-        event.target.position({ x: start.nodeX, y: start.nodeY })
+        event.currentTarget.position({ x: start.nodeX, y: start.nodeY })
       }}
       onDragEnd={(event) => {
         event.cancelBubble = true
         const start = dragStartRef.current
-        if (start) event.target.position({ x: start.nodeX, y: start.nodeY })
+        if (start) event.currentTarget.position({ x: start.nodeX, y: start.nodeY })
         dragStartRef.current = null
       }}
       onWheel={(event) => {
@@ -262,59 +261,36 @@ const PhotoSlot = ({ src, x, y, width, height, index, radius = 0, adjustment, on
         onSelect(index)
         onZoom(index, event.evt.deltaY < 0 ? 0.1 : -0.1)
       }}
-    />
+    >
+      <KonvaImage
+        image={image}
+        x={width}
+        y={0}
+        width={width}
+        height={height}
+        scaleX={-1}
+        crop={{ x: cropX, y: cropY, width: cropWidth, height: cropHeight }}
+        cornerRadius={radius}
+        listening={false}
+      />
+    </Group>
   )
 }
 
 // ==========================================
 // ĐỊNH NGHĨA LOCAL CONFIG ĐỂ CHỐNG LỖI TRẮNG MÀN HÌNH
 // ==========================================
-const FRAME_CONFIGS = {
-  'FRAME-4-doc-gau-xanh-ic': {
-    previewUrl: '/frames/FRAME-4-doc-gau-xanh-ic.png',
-    paddingTop: 17, paddingBottom: 37, paddingSide: 15, gap: 9, radius: 0, poses: 4
-  },
-  'FRAME-4-doc-da-banh': {
-    previewUrl: '/frames/FRAME-4-doc-da-banh.png',
-    paddingTop: 28, paddingBottom: 22, paddingSide: 11, gap: 6, radius: 0, poses: 4
-  },
-  'FRAME-4-doc-da-banh-bai-bien': {
-    previewUrl: '/frames/FRAME-4-doc-da-banh-bai-bien.png',
-    paddingTop: 28, paddingBottom: 40, paddingSide: 37, gap: 6, radius: 0, poses: 4
-  },
-  'default': {
-    previewUrl: '',
-    paddingTop: 50, paddingBottom: 50, paddingSide: 16, gap: 12, radius: 0, poses: 4
-  }
-};
-
-const buildLayoutSlots = (layoutType, canvasWidth, canvasHeight, config) => {
-  if (!config) return [];
-  const count = config.poses || 4;
-  const { paddingTop, paddingBottom, paddingSide, gap } = config;
-  const availableHeight = canvasHeight - paddingTop - paddingBottom;
-  const slotHeight = (availableHeight - gap * (count - 1)) / count;
-  const slotWidth = canvasWidth - paddingSide * 2;
-
-  return Array.from({ length: count }, (_, index) => ({
-    x: paddingSide,
-    y: paddingTop + index * (slotHeight + gap),
-    width: slotWidth,
-    height: slotHeight,
-  }))
-}
-
 // ==========================================
 // MAIN COMPONENT
 // ==========================================
 export default function ProcessingScreen() {
-  const { currentStep, nextStep, prevStep, capturedPhotos, selectedLayout, setCapturedPhotos, selectedFrameId, expectedPoses } = usePhotobooth()
+  const { currentStep, nextStep, prevStep, capturedPhotos, selectedFrame, expectedPoses, session, setFinalImage } = usePhotobooth()
   const allCapturedPhotos = capturedPhotos || []
   const targetShots = Math.min(expectedPoses || 4, allCapturedPhotos.length)
 
   // Khung dọc tiêu chuẩn
-  const canvasWidth = 218 
-  const canvasHeight = 600
+  const canvasWidth = selectedFrame?.canvasWidth || 1
+  const canvasHeight = selectedFrame?.canvasHeight || 1
 
   const [viewportSize, setViewportSize] = useState(() => ({
     width: window.innerWidth,
@@ -331,6 +307,8 @@ export default function ProcessingScreen() {
   const [selectedSlotIndex, setSelectedSlotIndex] = useState(null)
   const [photoAdjustments, setPhotoAdjustments] = useState({})
   const [remainingCustomizeSeconds, setRemainingCustomizeSeconds] = useState(CUSTOMIZE_TIMER_SECONDS)
+  const [saveError, setSaveError] = useState(null)
+  const [isSavingFinal, setIsSavingFinal] = useState(false)
 
   const stageRef = useRef(null)
   const canvasBoxRef = useRef(null)
@@ -363,14 +341,13 @@ export default function ProcessingScreen() {
   // -----------------------------------------------------
   // LOGIC TRUY XUẤT ĐÚNG FRAME VÀ CONFIG CHỐNG CRASH
   // -----------------------------------------------------
-  const activeFrameConfig = FRAME_CONFIGS[selectedFrameId] || FRAME_CONFIGS['default'];
-  const layoutSlots = buildLayoutSlots(selectedLayout || 'strip-4', canvasWidth, canvasHeight, activeFrameConfig);
+  const layoutSlots = selectedFrame?.slots?.map((slot) => ({ x: slot.posX, y: slot.posY, width: slot.width, height: slot.height, rotation: slot.rotation || 0 })) || []
   const availableIcons = buildIconLibrary()
   const photosList = selectedPhotoIndices
     .map((index) => allCapturedPhotos[index])
-  const maxCanvasHeight = Math.min(viewportSize.height - 150, 860)
+  const maxCanvasHeight = Math.max(260, Math.min(viewportSize.height - 150, 860))
   const maxCanvasWidth = Math.max(260, viewportSize.width - 500)
-  const canvasScale = Math.max(1, Math.min(maxCanvasHeight / canvasHeight, maxCanvasWidth / canvasWidth))
+  const canvasScale = Math.min(1, maxCanvasHeight / canvasHeight, maxCanvasWidth / canvasWidth)
   const displayCanvasWidth = Math.round(canvasWidth * canvasScale)
   const displayCanvasHeight = Math.round(canvasHeight * canvasScale)
 
@@ -381,7 +358,7 @@ export default function ProcessingScreen() {
   }, [allCapturedPhotos, canvasScale, layoutSlots])
 
   // Load trực tiếp URL ảnh từ Config
-  const [frameImg] = useImage(activeFrameConfig.previewUrl || '', 'anonymous')
+  const [frameImg] = useImage(getCanvasSafeImageUrl(selectedFrame?.previewUrl) || '', 'anonymous')
 
   const availableFilters = [
     { id: 'none', name: 'Anh goc', style: 'none' },
@@ -595,19 +572,46 @@ export default function ProcessingScreen() {
     }
   }
 
-  const handleFinishCustomizing = () => {
+  const handleFinishCustomizing = async () => {
     if (targetShots === 0 || selectedPhotoIndices.length !== targetShots) return
+    if (isSavingFinal) return
+    if (!session?.qrCodeToken) {
+      setSaveError('Không tìm thấy phiên chụp. Vui lòng chụp lại.')
+      return
+    }
 
     if (stageRef.current) {
+      setSaveError(null)
+      setIsSavingFinal(true)
       setSelectedStickerId(null)
       setSelectedSlotIndex(null)
-      setTimeout(() => {
-        const dataURL = stageRef.current.toDataURL({ pixelRatio: 4.5 / canvasScale })
-        if (typeof setCapturedPhotos === 'function') setCapturedPhotos([dataURL])
-        nextStep()
+      setTimeout(async () => {
+        try {
+          // Stage đang được thu nhỏ để vừa màn hình. Xuất ngược theo canvasScale
+          // để ảnh trở về độ phân giải gốc của frame, nhưng giới hạn cạnh dài
+          // ở 4096px để file JPEG không quá lớn làm NAS reset kết nối.
+          const previewLongEdge = Math.max(displayCanvasWidth, displayCanvasHeight)
+          const nativePixelRatio = 1 / Math.max(canvasScale, 0.01)
+          const safePixelRatio = 4096 / Math.max(previewLongEdge, 1)
+          const exportPixelRatio = Math.max(1, Math.min(nativePixelRatio, safePixelRatio))
+          const dataURL = stageRef.current.toDataURL({
+            mimeType: 'image/jpeg',
+            quality: 0.96,
+            pixelRatio: exportPixelRatio,
+          })
+          const blob = await (await fetch(dataURL)).blob()
+          const uploaded = await uploadPhoto(new File([blob], `final-${session.qrCodeToken}.jpg`, { type: 'image/jpeg' }))
+          await finalizeSession(session.qrCodeToken, uploaded.url)
+          setFinalImage(uploaded.url)
+          nextStep()
+        } catch (error) {
+          setSaveError(error instanceof Error ? error.message : 'Không thể lưu ảnh ghép.')
+        } finally {
+          setIsSavingFinal(false)
+        }
       }, 100)
     } else {
-      nextStep()
+      setSaveError('Không thể tạo ảnh ghép.')
     }
   }
 
@@ -679,14 +683,15 @@ export default function ProcessingScreen() {
               
               {layoutSlots.map((slot, index) => (
                 <PhotoSlot 
-                  key={`${index}-${selectedFrameId}`} 
+                  key={`${index}-${selectedFrame?.id || 'frame'}`} 
                   src={photosList[index]} 
                   x={slot.x} 
                   y={slot.y} 
                   width={slot.width} 
                   height={slot.height} 
+                  rotation={slot.rotation}
                   index={index} 
-                  radius={activeFrameConfig.radius || 0} 
+                  radius={0} 
                   adjustment={photoAdjustments[index]}
                   onSelect={setSelectedSlotIndex}
                   onZoom={handlePhotoZoom}
@@ -782,7 +787,9 @@ export default function ProcessingScreen() {
       </div>
 
       <div className="processing-footer">
-        <Button label="Hoàn tất & Tiếp tục" icon="pi pi-check" iconPos="right" size="large" disabled={targetShots === 0 || selectedPhotoIndices.length !== targetShots} onClick={handleFinishCustomizing} />
+        {saveError && <p style={{ color: '#fecaca', margin: 0 }}>{saveError}</p>}
+        {isSavingFinal && <p style={{ color: '#d1fae5', margin: 0 }}>Đang tải ảnh ghép và hoàn tất phiên...</p>}
+        <Button label={isSavingFinal ? 'Đang lưu ảnh...' : 'Hoàn tất & Tiếp tục'} icon={isSavingFinal ? 'pi pi-spin pi-spinner' : 'pi pi-check'} iconPos="right" size="large" disabled={isSavingFinal || targetShots === 0 || selectedPhotoIndices.length !== targetShots} onClick={handleFinishCustomizing} />
       </div>
 
       {dragPreview && (
@@ -798,9 +805,3 @@ export default function ProcessingScreen() {
     </section>
   )
 }
-
-
-
-
-
-

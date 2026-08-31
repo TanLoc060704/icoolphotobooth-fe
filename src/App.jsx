@@ -22,7 +22,6 @@ function StepRouter() {
     case 5:
       return <PreviewScreen />
     case 6:
-    case 7:
       return <DeliveryScreen />
     default:
       return <IdleScreen />

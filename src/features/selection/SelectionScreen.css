@@ -280,6 +280,8 @@
 /* =========================================
    FIX LỖI NHÁY (FLICKER) KHI NHẢY VÒNG LẶP
 ========================================= */
-.frame-slideshow-track.is-jumping .frame-slide-card {
+.frame-slideshow-track.is-jumping .frame-slide-card,
+.frame-slideshow-track.is-jumping .frame-slide-card * {
   transition: none !important;
+  animation: none !important;
 }

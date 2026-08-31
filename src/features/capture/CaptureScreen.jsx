@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button } from 'primereact/button'
 import { usePhotobooth } from '../../store/PhotoboothContext.jsx'
+import { saveRawPhoto, uploadPhoto } from '../../services/sessionApi.js'
 import './CaptureScreen.css'
 
 const CAMERA_SOCKET_URL = 'ws://localhost:8080/'
@@ -20,21 +21,15 @@ const MOCK_CAPTURE_PHOTOS = [
   'http://cam-dd.synology.me:8080/media/72767cfa-c17c-4669-9ed9-f261ab3406f7.JPG',
 ]
 
-const CAPTURE_CONFIGS = {
-  'FRAME-4-doc-gau-xanh-ic': { capture: 6, target: 4, width: 4, height: 3 },
-  'FRAME-4-doc-da-banh': { capture: 6, target: 4, width: 4, height: 3 },
-  'FRAME-4-doc-da-banh-bai-bien': { capture: 6, target: 4, width: 4, height: 3 },
-  default: { capture: 6, target: 4, width: 4, height: 3 },
-}
-
 export default function CaptureScreen() {
   const {
     currentStep,
     nextStep,
     prevStep,
-    selectedFrameId,
+    selectedFrame,
     expectedPoses,
     setCapturedPhotos,
+    session,
   } = usePhotobooth()
 
   const socketRef = useRef(null)
@@ -54,6 +49,7 @@ export default function CaptureScreen() {
   const pendingOfficialPhotoSlotsRef = useRef([])
   const capturedImagesRef = useRef([])
   const hasLoadedMockPhotosRef = useRef(false)
+  const ignoredSocketUploadMessagesRef = useRef(0)
 
   const [connectionStatus, setConnectionStatus] = useState('connecting')
   const [hasLiveView, setHasLiveView] = useState(false)
@@ -73,11 +69,14 @@ export default function CaptureScreen() {
   const [isAutoCapturing, setIsAutoCapturing] = useState(false)
   const [isWaitingForCapture, setIsWaitingForCapture] = useState(false)
 
-  const frameConf = CAPTURE_CONFIGS[selectedFrameId] || CAPTURE_CONFIGS.default
-  const totalShots = Math.min(frameConf.capture, MAX_CAPTURED_IMAGES)
-  const targetShots = Math.min(expectedPoses || frameConf.target, totalShots)
+  const totalShots = Math.min(expectedPoses, MAX_CAPTURED_IMAGES)
+  const targetShots = totalShots
+  const activeSlot = selectedFrame?.slots?.[currentShotIndex % Math.max(selectedFrame.slots.length, 1)] || selectedFrame?.slots?.[0]
+  const activeSlotWidth = activeSlot?.rotation % 180 === 0 ? activeSlot?.width : activeSlot?.height
+  const activeSlotHeight = activeSlot?.rotation % 180 === 0 ? activeSlot?.height : activeSlot?.width
   const ratioConfig = {
-    css: `${frameConf.width} / ${frameConf.height}`,
+    css: activeSlotWidth && activeSlotHeight ? `${activeSlotWidth} / ${activeSlotHeight}` : '4 / 3',
+    value: activeSlotWidth && activeSlotHeight ? activeSlotWidth / activeSlotHeight : 4 / 3,
   }
 
   const clearCaptureTimers = useCallback(() => {
@@ -150,29 +149,50 @@ export default function CaptureScreen() {
     return true
   }, [])
 
-  const handleCapturedImage = useCallback((jpegBuffer) => {
+  const handleCapturedImage = useCallback(async (jpegBuffer) => {
     if (!isWaitingForCaptureRef.current || jpegBuffer.byteLength === 0) return
 
-    const capturedUrl = URL.createObjectURL(new Blob([jpegBuffer], { type: 'image/jpeg' }))
-    capturedObjectUrlsRef.current.add(capturedUrl)
-    pendingOfficialPhotoSlotsRef.current.push({
-      index: currentShotIndexRef.current,
-      temporaryUrl: capturedUrl,
-    })
-    completeCapture(capturedUrl)
-  }, [completeCapture])
+    if (!session?.id) {
+      showToast('Không tìm thấy phiên chụp. Vui lòng quay lại chọn khung.')
+      setIsAutoCapturing(false)
+      return
+    }
+
+    ignoredSocketUploadMessagesRef.current += 1
+    try {
+      const file = new File([jpegBuffer], `raw-${Date.now()}.jpg`, { type: 'image/jpeg' })
+      const uploaded = await uploadPhoto(file)
+      await saveRawPhoto({ sessionId: session.id, imageUrl: uploaded.url, filterApplied: 'none' })
+      completeCapture(uploaded.url)
+    } catch (error) {
+      isWaitingForCaptureRef.current = false
+      setIsWaitingForCapture(false)
+      setIsAutoCapturing(false)
+      showToast(error instanceof Error ? error.message : 'Không thể lưu ảnh vừa chụp.')
+    }
+  }, [completeCapture, session, showToast])
 
   const handleUploadedPhoto = useCallback((message) => {
     if (!message.startsWith(PHOTO_URL_PREFIX)) return false
+
+    if (ignoredSocketUploadMessagesRef.current > 0) {
+      ignoredSocketUploadMessagesRef.current -= 1
+      return true
+    }
 
     try {
       const photo = JSON.parse(message.slice(PHOTO_URL_PREFIX.length))
       console.log('Uploaded photo:', photo)
 
       if (photo?.url && typeof photo.url === 'string') {
+        if (!session?.id) throw new Error('Không tìm thấy phiên chụp.')
+        saveRawPhoto({ sessionId: session.id, imageUrl: photo.url, filterApplied: 'none' })
+          .then(() => {
         if (!replaceTemporaryPhoto(photo.url)) {
           completeCapture(photo.url)
         }
+          })
+          .catch((error) => showToast(error instanceof Error ? error.message : 'Không thể lưu thông tin ảnh.'))
       }
     } catch (error) {
       console.error('Invalid PHOTO_URL message:', error)
@@ -180,7 +200,7 @@ export default function CaptureScreen() {
     }
 
     return true
-  }, [completeCapture, replaceTemporaryPhoto, showToast])
+  }, [completeCapture, replaceTemporaryPhoto, session, showToast])
 
   useEffect(() => {
     if (!USE_MOCK_CAPTURE_PHOTOS || currentStep !== 3) {
@@ -480,7 +500,10 @@ export default function CaptureScreen() {
             </h2>
           </div>
 
-          <div className="camera-viewport-wrapper" style={{ aspectRatio: ratioConfig.css }}>
+          <div
+            className="camera-viewport-wrapper"
+            style={{ aspectRatio: ratioConfig.css, '--slot-ratio': ratioConfig.value }}
+          >
             <img
               ref={liveViewImageRef}
               className="live-view-frame"
