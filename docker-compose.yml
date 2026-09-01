@@ -5,6 +5,15 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL}
+        VITE_API_USERNAME: ${VITE_API_USERNAME}
+        VITE_API_PASSWORD: ${VITE_API_PASSWORD}
+        VITE_PHOTO_BOOTH_ID: ${VITE_PHOTO_BOOTH_ID}
+        VITE_PUBLIC_WEB_BASE_URL: ${VITE_PUBLIC_WEB_BASE_URL}
+        VITE_CAMERA_CONTROL_ENABLED: ${VITE_CAMERA_CONTROL_ENABLED}
+        VITE_CAMERA_CONTROL_BASE_URL: ${VITE_CAMERA_CONTROL_BASE_URL}
+        VITE_CAMERA_APP_PATH: ${VITE_CAMERA_APP_PATH}
     ports:
       - "${APP_PORT:-3000}:80"
     restart: unless-stopped
