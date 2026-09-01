@@ -26,4 +26,5 @@ export async function fetchFrames() {
   const payload = await framesResponse.json()
   if (!Array.isArray(payload?.data)) throw new Error('Dữ liệu frame từ API không hợp lệ.')
   return payload.data.filter((frame) => frame?.status === 'ACTIVE').map((frame) => ({ ...frame, slots: [...(frame.slots || [])].sort((a, b) => a.slotIndex - b.slotIndex) }))
+
 }
