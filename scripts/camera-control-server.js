@@ -10,6 +10,7 @@ const DEFAULT_CAMERA_APP_PATH = process.env.CAMERA_APP_PATH || ''
 const CAMERA_SOCKET_HOST = process.env.CAMERA_SOCKET_HOST || '127.0.0.1'
 const CAMERA_SOCKET_PORT = Number(process.env.CAMERA_SOCKET_PORT || 8080)
 const CAMERA_START_TIMEOUT_MS = Number(process.env.CAMERA_START_TIMEOUT_MS || 20000)
+const CAMERA_APP_WINDOW_MODE = (process.env.CAMERA_APP_WINDOW_MODE || 'minimize').toLowerCase()
 
 let cameraProcess = null
 let cameraExeName = DEFAULT_CAMERA_APP_PATH ? basename(DEFAULT_CAMERA_APP_PATH) : ''
@@ -98,6 +99,114 @@ function stopByImageName(imageName) {
   })
 }
 
+function minimizeCameraWindow(imageName) {
+  if (process.platform !== 'win32' || CAMERA_APP_WINDOW_MODE === 'visible') return
+
+  const processName = imageName ? basename(imageName, '.exe') : ''
+  const script = `
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+using System.Text;
+
+public class CameraWindow {
+  public delegate bool EnumWindowsCallback(IntPtr hWnd, IntPtr lParam);
+
+  [DllImport("user32.dll")]
+  public static extern bool EnumWindows(EnumWindowsCallback callback, IntPtr lParam);
+
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+  public static extern int GetWindowText(IntPtr hWnd, StringBuilder text, int count);
+
+  [DllImport("user32.dll")]
+  public static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow);
+
+  public static int Minimize() {
+    int matches = 0;
+
+    EnumWindows(delegate(IntPtr hWnd, IntPtr lParam) {
+      var title = new StringBuilder(512);
+      GetWindowText(hWnd, title, title.Capacity);
+
+      bool titleMatches = title.ToString().IndexOf(
+        "Canon Photobooth",
+        StringComparison.OrdinalIgnoreCase
+      ) >= 0;
+
+      if (titleMatches) {
+        ShowWindowAsync(hWnd, 6);
+        matches++;
+      }
+
+      return true;
+    }, IntPtr.Zero);
+
+    return matches;
+  }
+}
+"@
+$targetName = $env:CAMERA_TARGET_NAME
+$missingCycles = 0
+while ($missingCycles -lt 200) {
+  $matches = [CameraWindow]::Minimize()
+  $processRunning = $targetName -and @(Get-Process -Name $targetName -ErrorAction SilentlyContinue).Count -gt 0
+
+  if ($matches -gt 0 -or $processRunning) {
+    $missingCycles = 0
+  } else {
+    $missingCycles++
+  }
+
+  Start-Sleep -Milliseconds 100
+}
+`
+
+  execFile(
+    'powershell.exe',
+    ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', script],
+    {
+      windowsHide: true,
+      env: {
+        ...process.env,
+        CAMERA_TARGET_NAME: processName,
+      },
+    },
+    (error) => {
+      if (error) console.error(`Could not minimize camera window: ${error.message}`)
+    },
+  )
+}
+
+function startCameraProcess(resolvedPath) {
+  const options = {
+    cwd: dirname(resolvedPath),
+    detached: false,
+    stdio: 'ignore',
+  }
+
+  if (process.platform !== 'win32' || CAMERA_APP_WINDOW_MODE === 'visible') {
+    return spawn(resolvedPath, { ...options, windowsHide: false })
+  }
+
+  const script = `
+$camera = Start-Process ` +
+    `-FilePath $env:CAMERA_EXECUTABLE ` +
+    `-WorkingDirectory $env:CAMERA_WORKING_DIRECTORY ` +
+    `-WindowStyle Minimized -PassThru
+Wait-Process -Id $camera.Id
+`
+
+  return spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', script], {
+    ...options,
+    windowsHide: true,
+    env: {
+      ...process.env,
+      CAMERA_EXECUTABLE: resolvedPath,
+      CAMERA_WORKING_DIRECTORY: dirname(resolvedPath),
+    },
+  })
+}
+
 async function handleStart(request, response) {
   const body = await readJson(request)
   const appPath = body.path || DEFAULT_CAMERA_APP_PATH
@@ -107,13 +216,14 @@ async function handleStart(request, response) {
     return
   }
 
+  const resolvedPath = resolve(appPath)
+  cameraExeName = basename(resolvedPath)
+
   if (await canConnectToCameraSocket()) {
+    minimizeCameraWindow(cameraExeName)
     sendJson(response, 200, { ok: true, alreadyRunning: true, pid: cameraProcess?.pid || null })
     return
   }
-
-  const resolvedPath = resolve(appPath)
-  cameraExeName = basename(resolvedPath)
 
   // A previous launcher may have closed while leaving the camera process alive.
   // Clear that stale process before opening a new Canon SDK session.
@@ -122,12 +232,8 @@ async function handleStart(request, response) {
   cameraProcess = null
   await delay(800)
 
-  const startedProcess = spawn(resolvedPath, {
-    cwd: dirname(resolvedPath),
-    detached: false,
-    stdio: 'ignore',
-    windowsHide: false,
-  })
+  minimizeCameraWindow(cameraExeName)
+  const startedProcess = startCameraProcess(resolvedPath)
   cameraProcess = startedProcess
 
   startedProcess.on('exit', () => {
