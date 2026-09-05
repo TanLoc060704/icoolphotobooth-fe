@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button } from 'primereact/button'
 import { usePhotobooth } from '../../store/PhotoboothContext.jsx'
-import { saveRawPhoto, uploadPhoto } from '../../services/sessionApi.js'
+import { saveRawPhoto } from '../../services/sessionApi.js'
 import { getSlotPhotoArrayIndex } from '../../utils/frameSlots.js'
 import './CaptureScreen.css'
 
@@ -50,7 +50,6 @@ export default function CaptureScreen() {
   const pendingOfficialPhotoSlotsRef = useRef([])
   const capturedImagesRef = useRef([])
   const hasLoadedMockPhotosRef = useRef(false)
-  const ignoredSocketUploadMessagesRef = useRef(0)
 
   const [connectionStatus, setConnectionStatus] = useState('connecting')
   const [hasLiveView, setHasLiveView] = useState(false)
@@ -99,14 +98,16 @@ export default function CaptureScreen() {
     toastTimeoutRef.current = setTimeout(() => setToastMessage(null), 3000)
   }, [])
 
-  const completeCapture = useCallback((capturedUrl) => {
+  const completeCapture = useCallback((capturedUrl, shouldAppend = true) => {
     clearTimeout(captureResponseTimeoutRef.current)
     captureResponseTimeoutRef.current = null
     isWaitingForCaptureRef.current = false
     setIsWaitingForCapture(false)
 
     const nextIndex = currentShotIndexRef.current + 1
-    const nextImages = [...capturedImagesRef.current, capturedUrl].slice(-MAX_CAPTURED_IMAGES)
+    const nextImages = shouldAppend
+      ? [...capturedImagesRef.current, capturedUrl].slice(-MAX_CAPTURED_IMAGES)
+      : capturedImagesRef.current
     capturedImagesRef.current = nextImages
     setCapturedImages(nextImages)
 
@@ -130,14 +131,12 @@ export default function CaptureScreen() {
     const pendingSlot = pendingOfficialPhotoSlotsRef.current.shift()
     if (!pendingSlot) return false
 
-    setCapturedImages((previous) => {
-      if (previous[pendingSlot.index] !== pendingSlot.temporaryUrl) return previous
+    if (capturedImagesRef.current[pendingSlot.index] !== pendingSlot.temporaryUrl) return false
 
-      const nextImages = [...previous]
-      nextImages[pendingSlot.index] = officialUrl
-      capturedImagesRef.current = nextImages
-      return nextImages
-    })
+    const nextImages = [...capturedImagesRef.current]
+    nextImages[pendingSlot.index] = officialUrl
+    capturedImagesRef.current = nextImages
+    setCapturedImages(nextImages)
     setPreviewImage((currentPreview) => (
       currentPreview === pendingSlot.temporaryUrl ? officialUrl : currentPreview
     ))
@@ -150,36 +149,22 @@ export default function CaptureScreen() {
     return true
   }, [])
 
-  const handleCapturedImage = useCallback(async (jpegBuffer) => {
+  const handleCapturedImage = useCallback((jpegBuffer) => {
     if (!isWaitingForCaptureRef.current || jpegBuffer.byteLength === 0) return
+    if (pendingOfficialPhotoSlotsRef.current.length > 0) return
 
-    if (!session?.id) {
-      showToast('Không tìm thấy phiên chụp. Vui lòng quay lại chọn khung.')
-      setIsAutoCapturing(false)
-      return
-    }
+    const temporaryUrl = URL.createObjectURL(new Blob([jpegBuffer], { type: 'image/jpeg' }))
+    const index = capturedImagesRef.current.length
+    const nextImages = [...capturedImagesRef.current, temporaryUrl].slice(-MAX_CAPTURED_IMAGES)
 
-    ignoredSocketUploadMessagesRef.current += 1
-    try {
-      const file = new File([jpegBuffer], `raw-${Date.now()}.jpg`, { type: 'image/jpeg' })
-      const uploaded = await uploadPhoto(file)
-      await saveRawPhoto({ sessionId: session.id, imageUrl: uploaded.url, filterApplied: 'none' })
-      completeCapture(uploaded.url)
-    } catch (error) {
-      isWaitingForCaptureRef.current = false
-      setIsWaitingForCapture(false)
-      setIsAutoCapturing(false)
-      showToast(error instanceof Error ? error.message : 'Không thể lưu ảnh vừa chụp.')
-    }
-  }, [completeCapture, session, showToast])
+    capturedObjectUrlsRef.current.add(temporaryUrl)
+    pendingOfficialPhotoSlotsRef.current.push({ index, temporaryUrl })
+    capturedImagesRef.current = nextImages
+    setCapturedImages(nextImages)
+  }, [])
 
   const handleUploadedPhoto = useCallback((message) => {
     if (!message.startsWith(PHOTO_URL_PREFIX)) return false
-
-    if (ignoredSocketUploadMessagesRef.current > 0) {
-      ignoredSocketUploadMessagesRef.current -= 1
-      return true
-    }
 
     try {
       const photo = JSON.parse(message.slice(PHOTO_URL_PREFIX.length))
@@ -187,11 +172,15 @@ export default function CaptureScreen() {
 
       if (photo?.url && typeof photo.url === 'string') {
         if (!session?.id) throw new Error('Không tìm thấy phiên chụp.')
-        saveRawPhoto({ sessionId: session.id, imageUrl: photo.url, filterApplied: 'none' })
+        saveRawPhoto({
+          sessionId: session.id,
+          imageUrl: photo.url,
+          filterApplied: 'none',
+          peopleCount: 1,
+        })
           .then(() => {
-        if (!replaceTemporaryPhoto(photo.url)) {
-          completeCapture(photo.url)
-        }
+            const replacedTemporaryPhoto = replaceTemporaryPhoto(photo.url)
+            completeCapture(photo.url, !replacedTemporaryPhoto)
           })
           .catch((error) => showToast(error instanceof Error ? error.message : 'Không thể lưu thông tin ảnh.'))
       }

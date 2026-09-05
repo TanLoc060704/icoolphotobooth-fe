@@ -380,9 +380,11 @@ export default function ProcessingScreen() {
     { id: 'dream', name: 'Mo mang', style: 'brightness(112%) contrast(86%) saturate(118%) blur(0.25px)' },
   ]
   const handleAddIcon = (icon) => {
+    const stickerSize = 144
     const newSticker = {
       id: Date.now().toString(), kind: 'icon', src: icon.src, name: icon.name,
-      x: canvasWidth / 2 - 36, y: canvasHeight / 2 - 36, width: 72, height: 72, rotation: 0, scaleX: 1, scaleY: 1,
+      x: (canvasWidth - stickerSize) / 2, y: (canvasHeight - stickerSize) / 2,
+      width: stickerSize, height: stickerSize, rotation: 0, scaleX: 1, scaleY: 1,
     }
     setStickers([...stickers, newSticker])
     setSelectedStickerId(newSticker.id)

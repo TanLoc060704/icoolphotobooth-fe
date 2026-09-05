@@ -87,7 +87,7 @@ export async function uploadPhoto(file) {
   return payload
 }
 
-export function saveRawPhoto({ sessionId, imageUrl, stickersData = null, filterApplied = 'none', peopleCount = null }) {
+export function saveRawPhoto({ sessionId, imageUrl, stickersData = null, filterApplied = 'none', peopleCount = 1 }) {
   return privateJson(API_PATHS.photos, { sessionId, imageUrl, stickersData, filterApplied, peopleCount }, 'Không thể lưu thông tin ảnh.')
 }
 
