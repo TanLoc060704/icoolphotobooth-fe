@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { fetchFrames } from '../services/frameApi.js'
 import { startSession } from '../services/sessionApi.js'
+import { getFramePhotoCount } from '../utils/frameSlots.js'
 
 const PhotoboothContext = createContext(null)
 
@@ -27,7 +28,7 @@ export function PhotoboothProvider({ children }) {
       setFrames(nextFrames)
       const nextSelectedFrame = nextFrames.find((frame) => frame.id === selectedFrameId) || nextFrames[0] || null
       setSelectedFrameId(nextSelectedFrame?.id ?? null)
-      setExpectedPoses(nextSelectedFrame?.slots?.length || 0)
+      setExpectedPoses(getFramePhotoCount(nextSelectedFrame))
     } catch (error) {
       setFrames([])
       setFramesError(error instanceof Error ? error.message : 'Không thể tải frame.')
@@ -53,7 +54,7 @@ export function PhotoboothProvider({ children }) {
   const resetKiosk = useCallback(() => {
     setCurrentStep(INITIAL_STEP)
     setSelectedFrameId(frames[0]?.id ?? null)
-    setExpectedPoses(frames[0]?.slots?.length || 0)
+    setExpectedPoses(getFramePhotoCount(frames[0]))
     setSelectedFilter(null)
     setCapturedPhotos([])
     setFinalImage(null)
@@ -67,7 +68,7 @@ export function PhotoboothProvider({ children }) {
     const nextSession = await startSession({
       photoBoothId,
       frameId: frame.id,
-      frameCount: frame.slots?.length || 0,
+      frameCount: getFramePhotoCount(frame),
       voucherId,
     })
     if (nextSession?.id === undefined || nextSession?.id === null) {

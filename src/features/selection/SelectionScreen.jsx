@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Button } from 'primereact/button'
 import { usePhotobooth } from '../../store/PhotoboothContext.jsx'
+import { getFramePhotoCount } from '../../utils/frameSlots.js'
 import './SelectionScreen.css'
 
 const FrameCard = ({ frame, isActive }) => (
@@ -9,7 +10,7 @@ const FrameCard = ({ frame, isActive }) => (
     <div className="frame-info">
       <h3>{frame.name}</h3>
       <div className="frame-configs">
-        <span className="config-badge">📸 {frame.slots.length} Ảnh</span>
+        <span className="config-badge">📸 {getFramePhotoCount(frame)} Ảnh</span>
         <span className="config-badge">📐 {frame.canvasWidth} × {frame.canvasHeight}</span>
       </div>
     </div>
@@ -92,7 +93,7 @@ export default function SelectionScreen() {
     setStartError(null)
     setIsStarting(true)
     setSelectedFrameId(selectedFrame.id)
-    setExpectedPoses(selectedFrame.slots.length)
+    setExpectedPoses(getFramePhotoCount(selectedFrame))
     try {
       await beginSession({ frame: selectedFrame })
       nextStep()

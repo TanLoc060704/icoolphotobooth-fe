@@ -107,24 +107,39 @@ export function saveCustomerInfo(qrCodeToken, customerInfo) {
 
 const getPhotoUrl = (photo) => {
   if (typeof photo === 'string') return photo
-  return photo?.imageUrl || photo?.url || photo?.photoUrl || photo?.finalImageUrl || null
+  return photo?.imageUrl || photo?.image_url || photo?.url || photo?.photoUrl || photo?.photo_url || photo?.finalImageUrl || photo?.final_image_url || null
 }
 
 const normalizeGallery = (payload) => {
   const data = payload?.data || payload
-  const candidateLists = [
-    data?.photos,
-    data?.rawPhotos,
-    data?.images,
-    data?.items,
-    Array.isArray(data) ? data : null,
-  ]
-  const photos = candidateLists
-    .find((candidate) => Array.isArray(candidate))
-    ?.map((photo) => (typeof photo === 'string' ? { imageUrl: photo } : { ...photo, imageUrl: getPhotoUrl(photo) }))
-    .filter((photo) => photo.imageUrl) || []
+  const normalizePhotoList = (items, fallbackType = null) => (
+    Array.isArray(items)
+      ? items
+        .map((photo) => (typeof photo === 'string' ? { imageUrl: photo } : { ...photo, imageUrl: getPhotoUrl(photo) }))
+        .filter((photo) => photo.imageUrl)
+        .map((photo) => ({
+          ...photo,
+          type: photo.type || photo.photoType || photo.photo_type || fallbackType,
+        }))
+      : []
+  )
 
-  const finalImageUrl = data?.finalImageUrl || data?.session?.finalImageUrl || payload?.finalImageUrl || null
+  const photoMap = new Map()
+  const addPhotos = (items, fallbackType = null) => {
+    normalizePhotoList(items, fallbackType).forEach((photo) => {
+      if (!photoMap.has(photo.imageUrl)) photoMap.set(photo.imageUrl, photo)
+    })
+  }
+
+  addPhotos(Array.isArray(data) ? data : null)
+  addPhotos(data?.rawPhotos || data?.raw_photos || data?.session?.rawPhotos || data?.session?.raw_photos, 'RAW')
+  addPhotos(data?.photos || data?.session?.photos)
+  addPhotos(data?.images || data?.session?.images)
+  addPhotos(data?.items || data?.session?.items)
+
+  const photos = Array.from(photoMap.values())
+
+  const finalImageUrl = data?.finalImageUrl || data?.final_image_url || data?.session?.finalImageUrl || data?.session?.final_image_url || payload?.finalImageUrl || payload?.final_image_url || null
   const hasFinalInPhotos = finalImageUrl && photos.some((photo) => photo.imageUrl === finalImageUrl)
 
   return {

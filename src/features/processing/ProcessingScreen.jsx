@@ -11,6 +11,7 @@ import { TbMoodSmile, TbMoodSmileBeam, TbMoodCrazyHappy, TbBalloon, TbHeartHands
 import { HiOutlineSparkles, HiOutlinePhoto, HiOutlineFaceSmile, HiOutlineCake } from 'react-icons/hi2'
 import { usePhotobooth } from '../../store/PhotoboothContext.jsx'
 import { finalizeSession, uploadPhoto } from '../../services/sessionApi.js'
+import { getFramePhotoCount, getSlotPhotoArrayIndex } from '../../utils/frameSlots.js'
 import './ProcessingScreen.css'
 
 const CUSTOMIZE_TIMER_SECONDS = 60
@@ -286,7 +287,8 @@ const PhotoSlot = ({ src, x, y, width, height, rotation = 0, index, radius = 0, 
 export default function ProcessingScreen() {
   const { currentStep, nextStep, prevStep, capturedPhotos, selectedFrame, expectedPoses, session, setFinalImage } = usePhotobooth()
   const allCapturedPhotos = capturedPhotos || []
-  const targetShots = Math.min(expectedPoses || 4, allCapturedPhotos.length)
+  const framePhotoCount = getFramePhotoCount(selectedFrame)
+  const targetShots = Math.min(framePhotoCount || expectedPoses || 4, allCapturedPhotos.length)
 
   // Khung dọc tiêu chuẩn
   const canvasWidth = selectedFrame?.canvasWidth || 1
@@ -341,7 +343,7 @@ export default function ProcessingScreen() {
   // -----------------------------------------------------
   // LOGIC TRUY XUẤT ĐÚNG FRAME VÀ CONFIG CHỐNG CRASH
   // -----------------------------------------------------
-  const layoutSlots = selectedFrame?.slots?.map((slot) => ({ x: slot.posX, y: slot.posY, width: slot.width, height: slot.height, rotation: slot.rotation || 0 })) || []
+  const layoutSlots = selectedFrame?.slots?.map((slot, index) => ({ x: slot.posX, y: slot.posY, width: slot.width, height: slot.height, rotation: slot.rotation || 0, photoArrayIndex: getSlotPhotoArrayIndex(slot, index, selectedFrame) })) || []
   const availableIcons = buildIconLibrary()
   const photosList = selectedPhotoIndices
     .map((index) => allCapturedPhotos[index])
@@ -428,14 +430,15 @@ export default function ProcessingScreen() {
   }
 
   const placePhotoInSlot = (photoIndex, slotIndex) => {
-    if (slotIndex === -1 || slotIndex >= targetShots) return
+    const targetPhotoArrayIndex = layoutSlots[slotIndex]?.photoArrayIndex
+    if (slotIndex === -1 || !Number.isInteger(targetPhotoArrayIndex) || targetPhotoArrayIndex >= targetShots) return
 
     setSelectedPhotoIndices((previous) => {
       const next = Array.from({ length: targetShots }, (_, index) => previous[index])
       const duplicateIndex = next.indexOf(photoIndex)
 
-      if (duplicateIndex !== -1) next[duplicateIndex] = next[slotIndex]
-      next[slotIndex] = photoIndex
+      if (duplicateIndex !== -1) next[duplicateIndex] = next[targetPhotoArrayIndex]
+      next[targetPhotoArrayIndex] = photoIndex
 
       return next.filter((index) => Number.isInteger(index))
     })
@@ -681,7 +684,7 @@ export default function ProcessingScreen() {
               {layoutSlots.map((slot, index) => (
                 <PhotoSlot 
                   key={`${index}-${selectedFrame?.id || 'frame'}`} 
-                  src={photosList[index]} 
+                  src={photosList[slot.photoArrayIndex]}
                   x={slot.x} 
                   y={slot.y} 
                   width={slot.width} 

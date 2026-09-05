@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button } from 'primereact/button'
 import { usePhotobooth } from '../../store/PhotoboothContext.jsx'
 import { saveRawPhoto, uploadPhoto } from '../../services/sessionApi.js'
+import { getSlotPhotoArrayIndex } from '../../utils/frameSlots.js'
 import './CaptureScreen.css'
 
 const CAMERA_SOCKET_URL = 'ws://localhost:8080/'
@@ -71,7 +72,7 @@ export default function CaptureScreen() {
 
   const totalShots = Math.min(expectedPoses, MAX_CAPTURED_IMAGES)
   const targetShots = totalShots
-  const activeSlot = selectedFrame?.slots?.[currentShotIndex % Math.max(selectedFrame.slots.length, 1)] || selectedFrame?.slots?.[0]
+  const activeSlot = selectedFrame?.slots?.find((slot, index) => getSlotPhotoArrayIndex(slot, index, selectedFrame) === currentShotIndex) || selectedFrame?.slots?.[currentShotIndex % Math.max(selectedFrame.slots.length, 1)] || selectedFrame?.slots?.[0]
   const activeSlotWidth = activeSlot?.rotation % 180 === 0 ? activeSlot?.width : activeSlot?.height
   const activeSlotHeight = activeSlot?.rotation % 180 === 0 ? activeSlot?.height : activeSlot?.width
   const ratioConfig = {

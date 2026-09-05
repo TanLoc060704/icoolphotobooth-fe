@@ -13,14 +13,38 @@ const getQrImageUrl = (value) =>
   `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(value)}`
 
 export default function PreviewScreen() {
-  const { currentStep, nextStep, session } = usePhotobooth()
+  const { currentStep, nextStep, session, capturedPhotos, finalImage } = usePhotobooth()
   const [gallery, setGallery] = useState(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState(null)
   const [retryCount, setRetryCount] = useState(0)
   const [timeLeft, setTimeLeft] = useState(PREVIEW_TIMEOUT_SECONDS)
 
-  const photos = useMemo(() => gallery?.photos || [], [gallery])
+  const photos = useMemo(() => {
+    const photoMap = new Map()
+    const addPhoto = (photo, fallbackType) => {
+      const normalizedPhoto = typeof photo === 'string'
+        ? { imageUrl: photo, type: fallbackType }
+        : {
+            ...photo,
+            imageUrl: photo?.imageUrl || photo?.image_url || photo?.url || photo?.photoUrl || photo?.photo_url,
+            type: photo?.type || photo?.photoType || photo?.photo_type || fallbackType,
+          }
+
+      if (!normalizedPhoto.imageUrl) return
+
+      const existingPhoto = photoMap.get(normalizedPhoto.imageUrl)
+      photoMap.set(normalizedPhoto.imageUrl, existingPhoto
+        ? { ...existingPhoto, ...normalizedPhoto, type: normalizedPhoto.type || existingPhoto.type }
+        : normalizedPhoto)
+    }
+
+    ;(gallery?.photos || []).forEach((photo) => addPhoto(photo))
+    ;(capturedPhotos || []).forEach((photo) => addPhoto(photo, 'RAW'))
+    if (finalImage) addPhoto(finalImage, 'FINAL')
+
+    return Array.from(photoMap.values())
+  }, [capturedPhotos, finalImage, gallery])
   const finalPhoto = useMemo(
     () => photos.find((photo) => getPhotoType(photo) === 'FINAL') || null,
     [photos],
@@ -29,18 +53,25 @@ export default function PreviewScreen() {
     () => photos.filter((photo) => getPhotoType(photo) !== 'FINAL'),
     [photos],
   )
+  const sessionError = currentStep === 5 && !session?.qrCodeToken
+    ? 'KhÃ´ng tÃ¬m tháº¥y mÃ£ QR cá»§a phiÃªn chá»¥p.'
+    : null
+  const displayError = sessionError || error
   const boothUrl = session?.qrCodeToken ? getBoothUrl(session.qrCodeToken) : null
   const qrImageUrl = boothUrl ? getQrImageUrl(boothUrl) : null
 
   useEffect(() => {
     if (currentStep !== 5) return undefined
 
-    setTimeLeft(PREVIEW_TIMEOUT_SECONDS)
+    const resetTimerId = window.setTimeout(() => setTimeLeft(PREVIEW_TIMEOUT_SECONDS), 0)
     const timerId = window.setInterval(() => {
       setTimeLeft((value) => Math.max(0, value - 1))
     }, 1000)
 
-    return () => window.clearInterval(timerId)
+    return () => {
+      window.clearTimeout(resetTimerId)
+      window.clearInterval(timerId)
+    }
   }, [currentStep])
 
   useEffect(() => {
@@ -50,14 +81,17 @@ export default function PreviewScreen() {
   useEffect(() => {
     if (currentStep !== 5) return undefined
     if (!session?.qrCodeToken) {
-      setGallery(null)
-      setError('Không tìm thấy mã QR của phiên chụp.')
+      window.setTimeout(() => setGallery(null), 0)
+      window.setTimeout(() => setError('Không tìm thấy mã QR của phiên chụp.'), 0)
       return undefined
     }
 
     const controller = new AbortController()
-    setIsLoading(true)
-    setError(null)
+    const loadingTimerId = window.setTimeout(() => {
+      if (controller.signal.aborted) return
+      setIsLoading(true)
+      setError(null)
+    }, 0)
 
     getGallery(session.qrCodeToken, { signal: controller.signal })
       .then(setGallery)
@@ -69,12 +103,15 @@ export default function PreviewScreen() {
         if (!controller.signal.aborted) setIsLoading(false)
       })
 
-    return () => controller.abort()
+    return () => {
+      window.clearTimeout(loadingTimerId)
+      controller.abort()
+    }
   }, [currentStep, retryCount, session?.qrCodeToken])
 
   if (currentStep !== 5) return null
 
-  const canContinue = !isLoading && !error && photos.length > 0
+  const canContinue = !isLoading && !displayError && photos.length > 0
 
   return (
     <section className="preview-screen-container">
@@ -105,11 +142,11 @@ export default function PreviewScreen() {
           </div>
         )}
 
-        {!isLoading && error && (
+        {!isLoading && displayError && (
           <div className="preview-state-card preview-error-card">
             <i className="pi pi-exclamation-circle preview-state-icon" />
             <strong>Không thể hiển thị ảnh</strong>
-            <span>{error}</span>
+            <span>{displayError}</span>
             <Button
               label="Thử lại"
               icon="pi pi-refresh"
@@ -120,7 +157,7 @@ export default function PreviewScreen() {
           </div>
         )}
 
-        {!isLoading && !error && !photos.length && (
+        {!isLoading && !displayError && !photos.length && (
           <div className="preview-state-card">
             <i className="pi pi-images preview-state-icon" />
             <strong>Gallery chưa có ảnh</strong>
@@ -128,7 +165,7 @@ export default function PreviewScreen() {
           </div>
         )}
 
-        {!isLoading && !error && photos.length > 0 && (
+        {!isLoading && !displayError && photos.length > 0 && (
           <div className="preview-gallery-layout">
             <article className="preview-final-panel">
               <div className="preview-panel-heading">
