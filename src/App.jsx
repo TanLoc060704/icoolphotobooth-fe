@@ -1,4 +1,6 @@
+import { useEffect } from 'react'
 import { PhotoboothProvider, usePhotobooth } from './store/PhotoboothContext.jsx'
+import { ensureCameraAppRunning } from './services/cameraAppControl.js'
 import KioskLayout from './layouts/KioskLayout.jsx'
 import IdleScreen from './features/idle/IdleScreen.jsx'
 import SelectionScreen from './features/selection/SelectionScreen.jsx'
@@ -29,6 +31,12 @@ function StepRouter() {
 }
 
 function App() {
+  useEffect(() => {
+    ensureCameraAppRunning().catch((error) => {
+      console.error('Could not initialize camera app:', error)
+    })
+  }, [])
+
   return (
     <PhotoboothProvider>
       <KioskLayout>

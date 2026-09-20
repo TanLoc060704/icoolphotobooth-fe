@@ -9,16 +9,20 @@ const PORT = Number(process.env.CAMERA_CONTROL_PORT || 5513)
 const DEFAULT_CAMERA_APP_PATH = process.env.CAMERA_APP_PATH || ''
 const CAMERA_SOCKET_HOST = process.env.CAMERA_SOCKET_HOST || '127.0.0.1'
 const CAMERA_SOCKET_PORT = Number(process.env.CAMERA_SOCKET_PORT || 8080)
+const CAMERA_API_BASE_URL = process.env.CAMERA_API_BASE_URL || 'http://localhost:5000/api/v1/camera'
+const CAMERA_API_TIMEOUT_MS = Number(process.env.CAMERA_API_TIMEOUT_MS || 5000)
 const CAMERA_START_TIMEOUT_MS = Number(process.env.CAMERA_START_TIMEOUT_MS || 20000)
 const CAMERA_APP_WINDOW_MODE = (process.env.CAMERA_APP_WINDOW_MODE || 'minimize').toLowerCase()
 
 let cameraProcess = null
 let cameraExeName = DEFAULT_CAMERA_APP_PATH ? basename(DEFAULT_CAMERA_APP_PATH) : ''
+let startOperation = null
+let wakeOperation = null
 
 function sendJson(response, statusCode, payload) {
   response.writeHead(statusCode, {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
     'Content-Type': 'application/json',
   })
@@ -207,13 +211,9 @@ Wait-Process -Id $camera.Id
   })
 }
 
-async function handleStart(request, response) {
-  const body = await readJson(request)
-  const appPath = body.path || DEFAULT_CAMERA_APP_PATH
-
+async function startCamera(appPath) {
   if (!appPath) {
-    sendJson(response, 400, { ok: false, error: 'Missing camera app path.' })
-    return
+    return { statusCode: 400, payload: { ok: false, error: 'Missing camera app path.' } }
   }
 
   const resolvedPath = resolve(appPath)
@@ -221,8 +221,10 @@ async function handleStart(request, response) {
 
   if (await canConnectToCameraSocket()) {
     minimizeCameraWindow(cameraExeName)
-    sendJson(response, 200, { ok: true, alreadyRunning: true, pid: cameraProcess?.pid || null })
-    return
+    return {
+      statusCode: 200,
+      payload: { ok: true, alreadyRunning: true, pid: cameraProcess?.pid || null },
+    }
   }
 
   // A previous launcher may have closed while leaving the camera process alive.
@@ -246,14 +248,72 @@ async function handleStart(request, response) {
     if (cameraProcess === startedProcess) cameraProcess = null
     if (startedProcess.exitCode === null) startedProcess.kill()
     await stopByImageName(cameraExeName)
-    sendJson(response, 503, {
-      ok: false,
-      error: `Camera app did not open WebSocket port ${CAMERA_SOCKET_PORT} within ${CAMERA_START_TIMEOUT_MS / 1000} seconds.`,
-    })
-    return
+    return {
+      statusCode: 503,
+      payload: {
+        ok: false,
+        error: `Camera app did not open WebSocket port ${CAMERA_SOCKET_PORT} within ${CAMERA_START_TIMEOUT_MS / 1000} seconds.`,
+      },
+    }
   }
 
-  sendJson(response, 200, { ok: true, pid: startedProcess.pid, socketReady: true })
+  return { statusCode: 200, payload: { ok: true, pid: startedProcess.pid, socketReady: true } }
+}
+
+async function handleStart(request, response) {
+  const body = await readJson(request)
+  const appPath = body.path || DEFAULT_CAMERA_APP_PATH
+
+  if (!startOperation) {
+    startOperation = startCamera(appPath).finally(() => {
+      startOperation = null
+    })
+  }
+
+  const result = await startOperation
+  sendJson(response, result.statusCode, result.payload)
+}
+
+async function requestCameraApi(path, method) {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), CAMERA_API_TIMEOUT_MS)
+
+  try {
+    const upstream = await fetch(`${CAMERA_API_BASE_URL.replace(/\/$/, '')}/${path}`, {
+      method,
+      headers: { Accept: 'application/json' },
+      signal: controller.signal,
+    })
+    const payload = await upstream.json().catch(() => ({}))
+    return { statusCode: upstream.status, payload }
+  } catch (error) {
+    return {
+      statusCode: 503,
+      payload: {
+        ok: false,
+        backendRunning: false,
+        error: error instanceof Error ? error.message : 'Camera backend is unavailable.',
+      },
+    }
+  } finally {
+    clearTimeout(timeoutId)
+  }
+}
+
+async function handleWake(response) {
+  if (!wakeOperation) {
+    wakeOperation = requestCameraApi('wake', 'POST').finally(() => {
+      wakeOperation = null
+    })
+  }
+
+  const result = await wakeOperation
+  sendJson(response, result.statusCode, result.payload)
+}
+
+async function handleStatus(response) {
+  const result = await requestCameraApi('status', 'GET')
+  sendJson(response, result.statusCode, result.payload)
 }
 
 async function handleStop(response) {
@@ -280,6 +340,16 @@ createServer(async (request, response) => {
 
     if (request.method === 'POST' && request.url === '/stop') {
       await handleStop(response)
+      return
+    }
+
+    if (request.method === 'POST' && request.url === '/wake') {
+      await handleWake(response)
+      return
+    }
+
+    if (request.method === 'GET' && request.url === '/status') {
+      await handleStatus(response)
       return
     }
 

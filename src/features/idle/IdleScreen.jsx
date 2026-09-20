@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Button } from 'primereact/button'
 import { usePhotobooth } from '../../store/PhotoboothContext.jsx'
-import { startCameraApp } from '../../services/cameraAppControl.js'
+import { wakeCameraApp } from '../../services/cameraAppControl.js'
 import './IdleScreen.css'
 
 export default function IdleScreen() {
@@ -15,10 +15,10 @@ export default function IdleScreen() {
     setIsStarting(true)
     setStartError(null)
     try {
-      await startCameraApp()
+      await wakeCameraApp()
       nextStep()
     } catch (error) {
-      setStartError(error instanceof Error ? error.message : 'Khong the mo ung dung may anh.')
+      setStartError(error instanceof Error ? error.message : 'Không thể khởi động máy ảnh. Vui lòng liên hệ nhân viên hỗ trợ.')
     } finally {
       setIsStarting(false)
     }
@@ -72,7 +72,7 @@ export default function IdleScreen() {
       {startError && <p className="idle-start-error">{startError}</p>}
 
       <Button 
-        label={isStarting ? 'ĐANG MỞ MÁY ẢNH...' : 'CHẠM ĐỂ BẮT ĐẦU'} 
+        label={isStarting ? 'ĐANG KHỞI ĐỘNG MÁY ẢNH...' : 'CHẠM ĐỂ BẮT ĐẦU'}
         icon={isStarting ? 'pi pi-spin pi-spinner' : 'pi pi-sparkles'} 
         size="large" 
         rounded
